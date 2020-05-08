@@ -215,11 +215,15 @@ class Entity:
         dx =  dirx * self.speed
         dy =  diry * self.speed
 
-        if self.x + dx > size * caseX:
-            dx = size * caseX - self.x
+        if self.x + dx > size * caseX or self.x + dx < 0:
+            dx = 0
+        if self.y + dy > size * caseY or self.y + dy < 0:
+            dy = 0
         
-        while(self.checkCollisions(dx, dy)):
+        while(self.checkCollisions(dx, 0)):
             dx -= dirx * 1/self.speed
+        
+        while(self.checkCollisions(0, dy)):
             dy -= diry * 1/self.speed
         
         self.x += dx
