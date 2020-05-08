@@ -4,6 +4,7 @@ import os, json
 from tkinter import filedialog
 from tkinter import messagebox
 
+import math
 import sys
 
 import cProfile
@@ -304,6 +305,19 @@ class Mob(Entity):
         super().loop()
         self.checkCollisionDamage()
 
+class MeleeEnemy(Mob):
+    def loop(self):
+        dirx = diry = 0
+        
+        DistanceJoueurX = player.x - self.x
+        DistanceJoueurY = player.y - self.y
+        
+        norme = math.sqrt(DistanceJoueurX**2 + DistanceJoueurY**2)
+        if (norme < 250):
+            self.move(DistanceJoueurX / norme, -DistanceJoueurY / norme)
+
+        super().loop()
+        
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
         super().__init__(id, x, y, rotation)
@@ -948,5 +962,6 @@ window.bind('<Escape>', Debug)
 #Tests
 player = Player(3* size, 3* size)
 chest = Chest("chest", 5 * size, 3 * size)
+mob = MeleeEnemy("test", 8 * size, size)
 
 window.mainloop()

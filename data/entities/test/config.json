@@ -6,7 +6,7 @@
     "side": "Hostile",
     "health": 100,
     "contactDamage": 40,
-    "speed": 10,
+    "speed": 2,
     "size": 1.0,
     "animSpeed": 40,
     "baseAnim": "Idle",
