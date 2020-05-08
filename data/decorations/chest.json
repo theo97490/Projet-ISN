@@ -1,0 +1,10 @@
+{
+    "decorID": 2,
+    "decorName" : "chest",
+    "usable" : true,
+    "canTp"  : false,
+    "images" : 2,
+    "hasCollisions" : true,
+    "animationTime" : 0
+
+}

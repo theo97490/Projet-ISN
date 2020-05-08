@@ -1,0 +1,10 @@
+{
+    "decorID": 1,
+    "decorName" : "test",
+    "usable" : false,
+    "canTp"  : false,
+    "images" : 2,
+    "hasCollisions" : false,
+    "animationTime" : 1
+
+}

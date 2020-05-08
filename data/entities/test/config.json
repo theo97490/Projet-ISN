@@ -1,0 +1,16 @@
+{
+    "entityID": 1,
+    "name": "test",
+    "class": "Mob",
+    "type": "Mob",
+    "side": "Hostile",
+    "health": 100,
+    "contactDamage": 40,
+    "speed": 10,
+    "size": 1.0,
+    "animSpeed": 40,
+    "baseAnim": "Idle",
+    "Animations": {
+        "Idle": [1, false]
+    }
+}

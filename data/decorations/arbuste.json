@@ -1,0 +1,10 @@
+{
+    "decorID": 0,
+    "decorName" : "arbuste",
+    "usable" : false,
+    "canTp"  : false,
+    "images" : 1,
+    "hasCollisions" : false,
+    "animationTime" : 0
+
+}

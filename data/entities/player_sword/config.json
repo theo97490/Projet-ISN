@@ -1,0 +1,16 @@
+{
+    "entityID": 2,
+    "name": "player_sword",
+    "class": "Skill",
+    "type": "Skill",
+    "side": "Passive",
+    "health": 1,
+    "contactDamage": 10,
+    "speed": 10,
+    "size": 1.0,
+    "animSpeed": 5,
+    "baseAnim": "anim", 
+    "Animations": {
+        "anim": [4, false]        
+    }
+}
