@@ -1,0 +1,16 @@
+{
+    "entityID": 3,
+    "name": "arrow",
+    "class": "Projectille",
+    "type": "Projectille",
+    "side": "Passive",
+    "health": 1,
+    "contactDamage": 50,
+    "speed": 10,
+    "size": 1.0,
+    "animSpeed": 5,
+    "baseAnim": "anim", 
+    "Animations": {
+        "anim": [1, true]        
+    }
+}

@@ -4,7 +4,7 @@ import os, json
 from tkinter import filedialog
 from tkinter import messagebox
 
-import math
+from math import * 
 import sys
 
 import cProfile
@@ -145,17 +145,14 @@ class Res_Entity:
         return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
   
 class Entity:
-
-    moveAnimTick = 30
-
-    def __init__(self, id, x: float, y: float, rotation=0, anchor=CENTER):
+    def __init__(self, id, x: float, y: float, rotation=0):
         #if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
         #    raise Exception(x + " " + y + " Isn't a valid position for an Entity")
         #    breakpoint()
 
         self.res = getRes(ENTITY, id)
-        self.x = x
-        self.y = y
+        self.x = float(x)
+        self.y = float(y)
         self.rotation = rotation
 
         self.type = self.res.type
@@ -177,10 +174,8 @@ class Entity:
         self._pendingAnimation = None
         self._pendingLoop = None
 
-        self.facingDirection = None 
-
         self.image = self.res.getTexture(self.currAnim, 0, rotation)
-        self.obj = canvas.create_image(x + margin, y, tags="entity", image=self.image, anchor=anchor)
+        self.obj = canvas.create_image(x + margin, y, tags="entity", image=self.image)
         
         self._pendingLoop = window.after(tick, self.loop)
 
@@ -201,17 +196,7 @@ class Entity:
 
     def move(self, dirx, diry):
         #dirx et diry sont des directions égales à 1 ou -1
-        if dirx > 0:
-            self.currAnim = self.facingDirection = RIGHT
-        elif dirx < 0:
-            self.currAnim = self.facingDirection = LEFT
-        elif diry > 0:
-            self.currAnim = self.facingDirection = UP
-        elif diry < 0:
-            self.currAnim = self.facingDirection = DOWN
-        else:
-            self.currAnim = "Idle"
-
+        
         diry = -diry
         dx =  dirx * self.speed
         dy =  diry * self.speed
@@ -231,6 +216,13 @@ class Entity:
         self.y += dy
 
         canvas.move(self.obj, dx ,dy)
+    
+    def moveTowards(self, x, y):
+        norme = self.getDistance(x,y)
+        x = x - self.x
+        y = y - self.y
+        y = -y
+        self.move(x / norme, y / norme)
     
     def animate(self):
         numberOfImages = self.res.animConfig[self.currAnim][0]
@@ -268,10 +260,24 @@ class Entity:
                 return True
         return False 
     
+    def getDistance(self, *args):
+        #Recupère la distance entre self et une entité si un argument donné,
+        #Sinon récupère la distance entre self et les coordonées donné
+        if len(args) == 1 and isinstance(args[0], Entity):
+            return sqrt((args[0].x - self.x)**2 + (args[0].y - self.y)**2 )
+        elif len(args) == 2 and type(args[0]) is float and type(args[1]) is float:
+            return sqrt((args[0] - self.x)**2 + (args[1] - self.y)**2)
+        else:
+            raise Exception("Bad arguments in function getDistance")
+            breakpoint()
+
     def animEND(self):
         pass
 
     def OnDeath(self):
+        pass
+    
+    def OnHit(self):
         pass
 
     def loop(self):
@@ -285,6 +291,25 @@ class Entity:
             return False
 
 class Mob(Entity):
+    def __init__(self, id, x, y, rotation=0):
+        super().__init__(id, x, y, rotation=rotation)
+
+        self.facingDirection = None 
+
+    def move(self, dirx, diry):
+        if dirx > 0:
+            self.currAnim = self.facingDirection = RIGHT
+        elif dirx < 0:
+            self.currAnim = self.facingDirection = LEFT
+        elif diry > 0:
+            self.currAnim = self.facingDirection = UP
+        elif diry < 0:
+            self.currAnim = self.facingDirection = DOWN
+        else:
+            self.currAnim = "Idle"
+
+        super().move(dirx, diry)
+
     def checkCollisionDamage(self):
         if self.invicibility:
             self.invCounter += 1
@@ -296,26 +321,25 @@ class Mob(Entity):
 
             for entity in findObjectByTag(ENTITY, items, "entity"):
                 if entity.side != self.side:
+                    entity.OnHit()
                     print( "[COLLISION] " + self.res.name + " collided with " + entity.res.name)
                     self.health -= entity.contactDamage
                     print("[DAMAGE] current health : "+ self.health.__str__())
                     self.invicibility = True
-                                
+
+                            
     def loop(self):
         super().loop()
-        self.checkCollisionDamage()
+        self.checkCollisionDamage()    
 
 class MeleeEnemy(Mob):
     def loop(self):
-        dirx = diry = 0
-        
-        DistanceJoueurX = player.x - self.x
-        DistanceJoueurY = player.y - self.y
-        
-        norme = math.sqrt(DistanceJoueurX**2 + DistanceJoueurY**2)
-        if (norme < 250):
-            self.move(DistanceJoueurX / norme, -DistanceJoueurY / norme)
 
+        #Deplacement        
+        norme = self.getDistance(player)
+        if (norme < 250):
+            self.moveTowards(player.x, player.y)
+        
         super().loop()
         
 class Skill(Entity):
@@ -414,7 +438,42 @@ class Player(Mob):
         self.move(dirx, diry)
 
         super().loop()
-        
+
+class Projectile(Entity):
+    def __init__(self, id, x, y, dirx, diry, rotation=0):
+        super().__init__(id, x, y, rotation=rotation)
+        self.initDir = (dirx, diry)
+    
+    def OnHit(self):
+        self.cleanUp()
+
+    def move(self, dirx, diry):
+        if diry == 0:
+            if dirx > 0:
+                self.rotation = 90
+            if dirx < 0:
+                self.rotation = -90 
+            else:
+                # ???
+                return False
+
+        elif diry > 0:
+            self.rotation = degrees(atan(dirx/-diry))
+        elif diry < 0:
+            self.rotation = degrees(atan(dirx/-diry)) + 180
+
+        if self.checkCollisions(dirx * self.speed, diry * self.speed):
+            self.cleanUp()
+            
+        super().move(dirx, diry)
+
+
+    def loop(self):
+        #self.move(*self.initDir)
+        self.moveTowards(player.x, player.y)
+        super().loop()
+
+ 
 class Tile:
     def __init__(self, id, x: int, y: int, rotation: int = 0):
         self.res = getRes(TILE, id)       
@@ -908,7 +967,6 @@ world_button.config(font=("TkDefaultFont", 30))
 window.protocol("WM_DELETE_WINDOW", shutdown)
 window.mainloop()
 
-
 world_button.place(relx=0 ,x=50, rely=0, y=40, anchor=NW)
 world_button.config(font=("TkDefaultFont", 10))
 
@@ -961,7 +1019,9 @@ window.bind('<Escape>', Debug)
 
 #Tests
 player = Player(3* size, 3* size)
-chest = Chest("chest", 5 * size, 3 * size)
-mob = MeleeEnemy("test", 8 * size, size)
+Chest("chest", 5 * size, 3 * size)
+MeleeEnemy("test", 8 * size, size)
+
+Projectile("arrow", caseX * size, size, -1, 0)
 
 window.mainloop()
