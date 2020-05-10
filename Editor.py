@@ -459,7 +459,7 @@ class Player(Mob):
                 dx = -size
                 dirx = -1
 
-            Projectile("arrow", self.x + dx, self.y + dy, dirx, diry)
+            Projectile("arrow", self.x + dx, self.y + dy, dirx, diry, getRotation(dirx, diry))
             self.action = None
 
     def use(self):
@@ -520,24 +520,9 @@ class Projectile(Entity):
     def OnCollision(self):
         self.cleanUp()
 
-
     def move(self, dirx, diry):
-        if diry == 0:
-            if dirx > 0:
-                self.rotation = -90
-            elif dirx < 0:
-                self.rotation = 90 
-            else:
-                # ???
-                return False
-
-        elif diry > 0:
-            self.rotation = degrees(atan(dirx/-diry))
-        elif diry < 0:
-            self.rotation = degrees(atan(dirx/-diry)) + 180
-            
+        self.rotation = getRotation(dirx, diry)
         super().move(dirx, diry)
-
 
     def loop(self):
         self.move(*self.initDir)
@@ -759,6 +744,24 @@ class World:
 
     def saveRegion(self, name: str):
         self.currRegion.save(self.dir + name)
+
+def getRotation(dirx, diry):
+        rotation = 0
+        if diry == 0:
+            if dirx > 0:
+                rotation = -90
+            elif dirx < 0:
+                rotation = 90 
+            else:
+                # ???
+                return False
+
+        elif diry > 0:
+            rotation = degrees(atan(dirx/-diry))
+        elif diry < 0:
+            rotation = degrees(atan(dirx/-diry)) + 180
+        
+        return rotation
 
 def findObjectByTag(resType, canvasItems, tag, first=False):
     objList = None
