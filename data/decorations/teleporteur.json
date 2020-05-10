@@ -1,0 +1,8 @@
+{
+    "decorID": 4,
+    "type": "Teleporter",
+    "decorName" : "teleporteur",
+    "images" : 1,
+    "hasCollisions" : false,
+    "animationTime" : 0
+}

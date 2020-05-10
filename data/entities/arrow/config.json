@@ -1,8 +1,8 @@
 {
     "entityID": 3,
     "name": "arrow",
-    "class": "Projectille",
-    "type": "Projectille",
+    "class": "Projectile",
+    "type": "Projectile",
     "side": "Passive",
     "health": 1,
     "contactDamage": 50,

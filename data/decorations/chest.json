@@ -1,8 +1,7 @@
 {
     "decorID": 2,
+    "type": "Decor",
     "decorName" : "chest",
-    "usable" : true,
-    "canTp"  : false,
     "images" : 2,
     "hasCollisions" : true,
     "animationTime" : 0

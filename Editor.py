@@ -3,6 +3,8 @@ from PIL import Image, ImageTk
 import os, json
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinter import simpledialog
+import traceback
 
 from math import * 
 import sys
@@ -76,13 +78,17 @@ class Res_Tile:
 class Res_Decor:
     def __init__(self, config: dict):
         self.id = config['decorID']
+        self.type = config['type']
         self.name = config['decorName']
-        self.usable = config['usable']
-        self.canTp = config['canTp']
-        self.collision = config['hasCollisions']
         self.images = config['images']
         self.animTime = config['animationTime']
         self.texture = []
+
+        self.collision = config['hasCollisions']
+        self.askParameters = None
+
+        if self.type == "Teleporter":
+            self.askParameters = {"dx" : "Int", "dy": "Int"}            
 
         if self.images > 1:
             for i in range (self.images):
@@ -157,6 +163,9 @@ class Entity:
         #    raise Exception(x + " " + y + " Isn't a valid position for an Entity")
         #    breakpoint()
 
+        print("\n\n New Trace Stack =====================================================")
+        traceback.print_stack()
+
         self.res = getRes(ENTITY, id)
         self.x = float(x)
         self.y = float(y)
@@ -188,7 +197,7 @@ class Entity:
         self._pendingLoop = window.after(tick, self.loop)
         self.fix = TkinterFix(self.x + margin, self.y, self)
 
-        if currWorld != None:
+        if currWorld != None and not self in currWorld.currRegion.entities:
             currWorld.currRegion.entities.append(self)
 
     def cleanUp(self):
@@ -206,7 +215,7 @@ class Entity:
 
     def move(self, dirx, diry):
         #dirx et diry sont des directions égales à 1 ou -1
-        
+
         diry = -diry
         dx =  dirx * self.speed
         dy =  diry * self.speed
@@ -352,6 +361,14 @@ class Mob(Entity):
 
         super().move(dirx, diry)
 
+    def checkGround(self):
+        items = canvas.find_overlapping(*canvas.bbox(self.obj))
+        walkable = findObjectByTag(DECOR, items, "walk", first=True)
+        if walkable != None:
+            walkable.OnWalk(self)
+            return True
+        return False
+
     def checkCollisionDamage(self):
         if self.invicibility:
             self.invCounter += 1
@@ -371,6 +388,7 @@ class Mob(Entity):
 
                             
     def loop(self):
+        self.checkGround()
         super().loop()
         self.checkCollisionDamage()    
 
@@ -567,7 +585,7 @@ class Tile:
             return False
 
 class Decor:
-    def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = ""):
+    def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = "", **kwargs):
 
         if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
             raise Exception(x + " " + y + " Isn't a valid position for a Decor")
@@ -578,8 +596,16 @@ class Decor:
         self.y = y
         self.rotation = rotation
 
+        #Seulement pour l'éditeur de map, nécéssaire pour les teleporteurs par exemple, pour les décors
+        #qui ont besoins plus d'information
+        self.arguments = None
+
         self.image = self.res.getTexture(0)
-        self.obj = canvas.create_image(x + margin, y, tags="decor collision " + tags, image=self.image)
+        
+        if self.res.collision:
+            tags += "collision"
+
+        self.obj = canvas.create_image(x + margin, y, tags="decor " + tags, image=self.image)
 
         self.animCounter = -1
         self._pendingAnimation = False
@@ -587,7 +613,7 @@ class Decor:
         if self.res.images > 1 and self.res.animTime != 0:
             self._pendingAnimation = window.after(self.res.animTime * 1000, self.animate)
 
-        if currWorld != None:
+        if currWorld != None and not self in currWorld.currRegion.decors:
             currWorld.currRegion.decors.append(self)
 
     def cleanUp(self):
@@ -624,17 +650,38 @@ class Decor:
         if self.obj == other:
             return True
         else:
-            return False  
-        
-class Chest(Decor):
-    def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = ""):
-        super().__init__(id , x ,y, rotation, tags = "usable " + tags)
+            return False
 
+class Interactable(Decor):
+    #Tags:  "usable" pour OnUse()
+    #       "walk" pour OnWalk()
+    #       
+    def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = ""):
+        super().__init__(id , x ,y, rotation, tags = tags)
+    
+
+    def OnUse(self):
+        pass
+
+    def OnWalk(self):
+        pass
+        
+class Chest(Interactable):
     def OnUse(self, player: Player):
         self.nextSprite()
         player.currency += 20
         print("[CHEST] Player current currency : " + player.currency.__str__())
-                     
+
+class Teleporter(Interactable):
+    def __init__(self, *args, **kw):
+        super().__init__(*args, tags="walk")
+        self.dir = (kw["dx"], kw["dy"])
+        self.arguments = kw
+
+    def OnWalk(self, entity):
+        if type(entity) is Player:
+            currWorld.loadRegion(*self.dir)
+
 class Region:
     def __init__(self):
         self.tiles = []
@@ -656,15 +703,20 @@ class Region:
                         self.tiles[y][x] = Tile(filetile[0], x, y, filetile[1])
 
                 for decor in data['decor']:
-                    self.decors.append(Decor(decor[0],decor[1][0],decor[1][1]))
-                
-                for entity in data['entities']:
-                    #A l'emplacement 1 on a le type de l'entité qui correspond à une classe définie dans notre programme
-                    #En utilisant getattr, on peut instancier une classe à partir d'un string donc de entity[1]
+                    if len(decor) == 3:
+                        if decor[2] != None:
+                            decor = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).type)(decor[0], *decor[1], **decor[2])
+                        else:
+                            decor = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).type)(decor[0], *decor[1])
+                    if currWorld == None:
+                        self.decors.append(decor)
 
-                    entity = getattr(sys.modules[__name__], getRes(ENTITY, entity[0]).className)(entity[0], entity[2][0], entity[2][1])
-                    self.entities.append(entity)
-                    
+                for entity in data['entities']:
+                    #TODO Maybe faire comme au desus
+                    entity = getattr(sys.modules[__name__], getRes(ENTITY, entity[0]).className)(entity[0], *entity[1])
+                    if currWorld == None:
+                        self.entities.append(entity)
+
                 return True
         except:
             print("Cannot load map")
@@ -675,10 +727,10 @@ class Region:
             for x in range(len(self.tiles[y])):
                 self.tiles[y][x].cleanUp()
 
-        for decor in self.decors:
+        for decor in self.decors[:]:
             decor.cleanUp()
 
-        for entity in self.entities:
+        for entity in self.entities[:]:
             entity.cleanUp()
 
         self.tiles = []
@@ -694,11 +746,11 @@ class Region:
 
         decorsData = []
         for decor in self.decors:
-            decorsData.append([decor.res.id, (decor.x, decor.y)])
+            decorsData.append([decor.res.id, (decor.x, decor.y), decor.arguments])
 
         entitiesData = []
         for entity in self.entities:
-            entitiesData.append([entity.res.id, entity.res.type, (entity.x, entity.y)])
+            entitiesData.append([entity.res.id, (entity.x, entity.y)])
         
         with open(path + ".data", "w") as file:
             dic = {'tiles': tilesData, 'decor': decorsData, 'entities': entitiesData}
@@ -960,6 +1012,7 @@ def arrowPressed(event):
 def arrowReleased(event):
     arrowsStatus[event.keysym] = False
     
+
 def OnClick(event):
 
     if event.y < 0 or event.y > size*caseY or event.x < margin or event.x > size*caseX + margin:
@@ -980,7 +1033,20 @@ def OnClick(event):
 
     elif currentMode == DECOR:
         if event.num == 1:
-            currRegion.decors.append(Decor(name,event.x - margin, event.y))
+            res: Res_Decor = getRes(DECOR, name)
+            if [word for word in ["Teleporter"] if res.type == word]:
+                kw = {}
+                for key in res.askParameters:
+                    val = 0
+                    if res.askParameters[key] == "Int":
+                        val = simpledialog.askinteger("Tkinter", "Ce décor a des paramètres supplémentaires à saisir \n Entrez " + key + " de type Integer" )
+                    elif res.askParameters[key] == "String":
+                        val = simpledialog.askstring("Tkinter", "Ce décor a des paramètres supplémentaires à saisir \n Entrez " + key + " de type String" )
+                    kw[key] = val
+
+                getattr(sys.modules[__name__], res.type )(name, event.x - margin, event.y, **kw)
+            else:
+                getattr(sys.modules[__name__], res.type )(name, event.x - margin, event.y)
 
         elif event.num == 3:
             items = canvas.find_overlapping(event.x, event.y, event.x, event.y)
@@ -992,7 +1058,10 @@ def OnClick(event):
     elif currentMode == ENTITY:
         if event.num == 1:
             res: Res_Entity = getRes(ENTITY, name)
-            currRegion.entities.append(getattr(sys.modules[__name__], res.className)(res.id, event.x - margin, event.y))
+            if res.name == "player":
+                getattr(sys.modules[__name__], res.className)(event.x - margin, event.y)
+            else:
+                getattr(sys.modules[__name__], res.className)(res.id, event.x - margin, event.y)
 
         elif event.num == 3:
             found = False
@@ -1095,7 +1164,7 @@ window.bind('<Escape>', Debug)
 #Tests
 player = Player(3* size, 3* size)
 Chest("chest", 5 * size, 3 * size)
-MeleeEnemy("test", 8 * size, size)
+
 
 
 window.mainloop()

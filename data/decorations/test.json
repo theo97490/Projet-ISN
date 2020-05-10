@@ -1,8 +1,7 @@
 {
     "decorID": 1,
+    "type": "Decor",
     "decorName" : "test",
-    "usable" : false,
-    "canTp"  : false,
     "images" : 2,
     "hasCollisions" : false,
     "animationTime" : 1
