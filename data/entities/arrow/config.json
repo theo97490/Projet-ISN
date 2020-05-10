@@ -6,7 +6,7 @@
     "side": "Passive",
     "health": 1,
     "contactDamage": 50,
-    "speed": 10,
+    "speed": 20,
     "size": 1.0,
     "animSpeed": 5,
     "baseAnim": "anim", 

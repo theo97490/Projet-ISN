@@ -8,7 +8,7 @@
     "contactDamage": 10,
     "speed": 10,
     "size": 1.0,
-    "animSpeed": 5,
+    "animSpeed": 10,
     "baseAnim": "anim", 
     "Animations": {
         "anim": [4, false]        

@@ -11,7 +11,7 @@ import cProfile
 
 
 Profiling = True
-
+showFixBbox = True
 
 
 if Profiling:
@@ -22,7 +22,7 @@ if Profiling:
 #Constantes
 WIDTH = 1920
 HEIGHT = 1080
-tick = int(1/60 * 1000) - 1
+tick = 15 #Environs 1 update par frame
 TILE = "TILE"
 DECOR = "DECOR"
 ENTITY = "ENTITY"
@@ -123,6 +123,9 @@ class Res_Entity:
         self.animations = {}
         self.animConfig = animConfig = config['Animations']
 
+        self.width = None
+        self.height = None
+
         for key in animConfig:
             texture = []
             spritesNumber = animConfig[key][0]
@@ -130,12 +133,16 @@ class Res_Entity:
                 for i in range(spritesNumber):
                     img = Image.open(entitiesFolder + directory + self.name + "_" + key + i.__str__() + ".png")
                     width, height = img.size
+                    self.width, self.height = img.size
+                    #La taille de l'image ne doit pas etre variable
                     img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
                     texture.append(img)
 
             elif spritesNumber == 1:
                 img = Image.open(entitiesFolder + directory + self.name + "_" + key + ".png")
                 width, height = img.size
+                self.width, self.height = img.size
+                #La taille de l'image ne doit pas etre variable
                 img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
                 texture.append(img)
 
@@ -171,6 +178,7 @@ class Entity:
         self.animCounter = 0
         self.animTick = 0
 
+        self.timer = 0
         self._pendingAnimation = None
         self._pendingLoop = None
 
@@ -178,6 +186,7 @@ class Entity:
         self.obj = canvas.create_image(x + margin, y, tags="entity", image=self.image)
         
         self._pendingLoop = window.after(tick, self.loop)
+        self.fix = TkinterFix(self.x + margin, self.y, self)
 
         if currWorld != None:
             currWorld.currRegion.entities.append(self)
@@ -191,8 +200,9 @@ class Entity:
             window.after_cancel(self._pendingLoop)
             self._pendingLoop = None
 
-        currWorld.currRegion.entities.remove(self)
         canvas.delete(self.obj)
+        self.fix.cleanUp()
+        currWorld.currRegion.entities.remove(self)
 
     def move(self, dirx, diry):
         #dirx et diry sont des directions égales à 1 ou -1
@@ -200,22 +210,26 @@ class Entity:
         diry = -diry
         dx =  dirx * self.speed
         dy =  diry * self.speed
-
-        if self.x + dx > size * caseX or self.x + dx < 0:
-            dx = 0
-        if self.y + dy > size * caseY or self.y + dy < 0:
-            dy = 0
         
         while(self.checkCollisions(dx, 0)):
             dx -= dirx * 1/self.speed
         
         while(self.checkCollisions(0, dy)):
             dy -= diry * 1/self.speed
+
+        if self.x + dx > size * caseX or self.x + dx < 0:
+            dx = 0
+            self.OnBorderTouch()
+
+        if self.y + dy > size * caseY or self.y + dy < 0:
+            dy = 0
+            self.OnBorderTouch()
         
         self.x += dx
         self.y += dy
 
         canvas.move(self.obj, dx ,dy)
+        self.fix.move(dx, dy)
     
     def moveTowards(self, x, y):
         norme = self.getDistance(x,y)
@@ -257,6 +271,7 @@ class Entity:
         for item in items:
             tags = canvas.gettags(item)
             if "collision" in tags:
+                self.OnCollision()
                 return True
         return False 
     
@@ -274,13 +289,20 @@ class Entity:
     def animEND(self):
         pass
 
+    def OnCollision(self):
+        pass
+
     def OnDeath(self):
+        pass
+
+    def OnBorderTouch(self):
         pass
     
     def OnHit(self):
         pass
 
     def loop(self):
+        self.timer += 1
         self._pendingLoop = window.after(tick, self.loop)
         self.animate()
 
@@ -289,6 +311,26 @@ class Entity:
             return True
         else:
             return False
+
+class TkinterFix:
+    #Tkinter a une manière spéciale de déterminer qu'est ce qui a changé sur l'écran qui permet de sauver des performances,
+    #Cette classe permet de forcer l'affichage des entités qui bougent sans qu'il y ait des bugs d'affichage
+    def __init__(self, x, y, entity, size=50):
+        bbox = canvas.bbox(entity.obj)
+        
+        height = entity.res.height
+        width = entity.res.width
+
+        if showFixBbox:
+            self.obj = canvas.create_rectangle(x - width/2 - size, y - height/2 - size, x + width/2 + size, y + height/2 + size, fill="", outline="")
+        else:
+            self.obj = canvas.create_rectangle(x - width/2 - size, y - height/2 - size, x + width/2 + size, y + height/2 + size, fill="")
+
+    def move(self, dx, dy):
+        canvas.move(self.obj, dx, dy)
+
+    def cleanUp(self):
+        canvas.delete(self.obj)
 
 class Mob(Entity):
     def __init__(self, id, x, y, rotation=0):
@@ -363,8 +405,11 @@ class Player(Mob):
         self._pendingMelee = None
         self.currency = 0
 
-        window.bind("<KeyPress-A>", lambda event: self.setAction("Melee"))
-        window.bind("<KeyPress-E>", lambda event: self.setAction("Use"))
+        self._timerShootArrow = 0
+
+        window.bind("<KeyPress-a>", lambda event: self.setAction("Melee"))
+        window.bind("<KeyPress-e>", lambda event: self.setAction("Use"))
+        window.bind("<KeyPress-z>", lambda event: self.setAction("Shoot"))
 
     def meleeAttack(self):
         self._pendingMelee = window.after(tick, self.meleeAttack)
@@ -394,6 +439,27 @@ class Player(Mob):
             self.sword = None
             window.after_cancel(self._pendingMelee)
             self._pendingMelee = None
+            self.action = None
+
+    def shootArrow(self):
+        if self.timer > self._timerShootArrow + 20:
+            self._timerShootArrow = self.timer
+
+            dirx = diry = dx = dy = 0
+            if self.facingDirection == UP:
+                diry = 1
+                dy = -size
+            elif self.facingDirection == DOWN:
+                diry = -1
+                dy = size
+            elif self.facingDirection == RIGHT:
+                dirx = 1
+                dx = size
+            elif self.facingDirection == LEFT:
+                dx = -size
+                dirx = -1
+
+            Projectile("arrow", self.x + dx, self.y + dy, dirx, diry)
             self.action = None
 
     def use(self):
@@ -433,6 +499,7 @@ class Player(Mob):
         elif self.action != "Pending":
             if self.action == "Melee": self.meleeAttack()
             if self.action == "Use": self.use()
+            if self.action == "Shoot": self.shootArrow()
             
 
         self.move(dirx, diry)
@@ -447,12 +514,19 @@ class Projectile(Entity):
     def OnHit(self):
         self.cleanUp()
 
+    def OnBorderTouch(self):
+        self.cleanUp()
+
+    def OnCollision(self):
+        self.cleanUp()
+
+
     def move(self, dirx, diry):
         if diry == 0:
             if dirx > 0:
-                self.rotation = 90
-            if dirx < 0:
-                self.rotation = -90 
+                self.rotation = -90
+            elif dirx < 0:
+                self.rotation = 90 
             else:
                 # ???
                 return False
@@ -461,17 +535,15 @@ class Projectile(Entity):
             self.rotation = degrees(atan(dirx/-diry))
         elif diry < 0:
             self.rotation = degrees(atan(dirx/-diry)) + 180
-
-        if self.checkCollisions(dirx * self.speed, diry * self.speed):
-            self.cleanUp()
             
         super().move(dirx, diry)
 
 
     def loop(self):
-        #self.move(*self.initDir)
-        self.moveTowards(player.x, player.y)
+        self.move(*self.initDir)
+        #self.moveTowards(player.x, player.y)
         super().loop()
+        canvas.update()
 
  
 class Tile:
@@ -1022,6 +1094,5 @@ player = Player(3* size, 3* size)
 Chest("chest", 5 * size, 3 * size)
 MeleeEnemy("test", 8 * size, size)
 
-Projectile("arrow", caseX * size, size, -1, 0)
 
 window.mainloop()

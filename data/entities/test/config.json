@@ -8,7 +8,7 @@
     "contactDamage": 40,
     "speed": 2,
     "size": 1.0,
-    "animSpeed": 40,
+    "animSpeed": 100000,
     "baseAnim": "Idle",
     "Animations": {
         "Idle": [1, false]
