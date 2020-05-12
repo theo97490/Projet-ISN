@@ -22,6 +22,7 @@ if Profiling:
 
 
 #Constantes
+test = 27
 WIDTH = 1920
 HEIGHT = 1080
 tick = 15 #Environs 1 update par frame
