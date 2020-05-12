@@ -325,7 +325,7 @@ class Entity(BasicElement):
         #Sinon récupère la distance entre self et les coordonées donné
         if len(args) == 1 and isinstance(args[0], Entity):
             return sqrt((args[0].x - self.x)**2 + (args[0].y - self.y)**2 )
-        elif len(args) == 2 and type(args[0]) is float and type(args[1]) is float:
+        elif len(args) == 2:
             return sqrt((args[0] - self.x)**2 + (args[1] - self.y)**2)
         else:
             raise Exception("Bad arguments in function getDistance")
