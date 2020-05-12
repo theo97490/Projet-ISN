@@ -5,6 +5,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import simpledialog
 import traceback
+import random
 
 from math import * 
 import sys
@@ -13,7 +14,7 @@ import cProfile
 
 
 Profiling = True
-showFixBbox = True
+showFixBbox = False
 
 
 if Profiling:
@@ -424,14 +425,43 @@ class Mob(Entity):
         self.checkCollisionDamage()    
 
 class MeleeEnemy(Mob):
+    def __init__(self, id, x, y, rotation=0):
+        super().__init__(id, x, y, rotation)
+
+
     def loop(self):
 
         #Deplacement        
         norme = self.getDistance(player)
+        SmallStep = 50
+        LongStep = 50
+
         if (norme < 250):
             self.moveTowards(player.x, player.y)
+            
+        else:
+            if (self.timer >= 60) :
+                self.timer = 0
+                if (random.randint(0,1) <= 0.2):
+                    if (random.randint(0,1) <= 0.75):
+                        self.RandomMove(SmallStep)
+                    else:
+                        self.RandomMove(LongStep)
+            
+            super().loop()
+    
+    def RandomMove(self, value):
+            Rand = random.randint(0,4)
+            if (Rand == 0) :
+                self.move(value, 0)
+            elif (Rand == 1) :
+                self.move(-value, 0)
+            elif (Rand == 2) :
+                self.move(0, value)
+            else :
+                self.move(0, -value)
+
         
-        super().loop()
         
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
