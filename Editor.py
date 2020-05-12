@@ -251,7 +251,6 @@ class Entity(BasicElement):
         self.invCounter = 0
         
         self.lastAnim = None
-        self.timer = 0
         
         self._pendingLoop = None
 
@@ -345,7 +344,6 @@ class Entity(BasicElement):
         pass
 
     def loop(self):
-        self.timer += 1
         self._pendingLoop = window.after(tick, self.loop)
 
 
@@ -427,39 +425,57 @@ class Mob(Entity):
 class MeleeEnemy(Mob):
     def __init__(self, id, x, y, rotation=0):
         super().__init__(id, x, y, rotation)
+        self.timer = 0
+        self.stopTimer = False
+        self.timer2 = 0
+        self.step = 0
+        self.direction = (0, 0)
 
 
     def loop(self):
-
         #Deplacement        
-        norme = self.getDistance(player)
-        SmallStep = 50
-        LongStep = 50
 
-        if (norme < 250):
+        if (self.getDistance(player) < 250):
             self.moveTowards(player.x, player.y)
             
         else:
             if (self.timer >= 60) :
                 self.timer = 0
+                self.stopTimer = True
+
                 if (random.randint(0,1) <= 0.2):
                     if (random.randint(0,1) <= 0.75):
-                        self.RandomMove(SmallStep)
+                        self.step = 50
                     else:
-                        self.RandomMove(LongStep)
+                        self.step = 100    
+                    self.RandomMove(self.step)
+                    
+                    self.timer2 = self.step/self.speed
             
-            super().loop()
+            if self.timer2 != 0:
+                self.move(*self.direction)
+                self.timer2 -= 1
+            else:
+                self.direction = (0,0)
+                self.stopTimer = False
+
+            if not self.stopTimer:
+                self.timer += 1
+            
+        super().loop()
+
+        
     
     def RandomMove(self, value):
             Rand = random.randint(0,4)
             if (Rand == 0) :
-                self.move(value, 0)
+                self.direction = (1, 0)
             elif (Rand == 1) :
-                self.move(-value, 0)
+                self.direction = (-1, 0)
             elif (Rand == 2) :
-                self.move(0, value)
+                self.direction = (0, 1)
             else :
-                self.move(0, -value)
+                self.direction = (0, -1)
 
         
         
@@ -480,6 +496,7 @@ class Player(Mob):
         self.action = None
         self._pendingMelee = None
         self.currency = 0
+        self.timer = 0
 
         self._timerShootArrow = 0
 
@@ -516,6 +533,7 @@ class Player(Mob):
             window.after_cancel(self._pendingMelee)
             self._pendingMelee = None
             self.action = None
+        
 
     def shootArrow(self):
         if self.timer > self._timerShootArrow + 20:
@@ -578,10 +596,8 @@ class Player(Mob):
             if self.action == "Use": self.use()
             if self.action == "Shoot": self.shootArrow()
             
-
-        
-
         super().loop()
+        self.timer += 1
 
 class Projectile(Entity):
     def __init__(self, id, x, y, dirx, diry, rotation=0):
