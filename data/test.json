@@ -2,6 +2,7 @@
     "id": 0,
     "name": "Ressource",
     "type": "Ressource",
+    "collisions": false,
     "animspeed": 10,
     "animations": [10, true]
 }

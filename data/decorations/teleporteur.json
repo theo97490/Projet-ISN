@@ -1,8 +1,8 @@
 {
-    "decorID": 4,
-    "type": "Teleporter",
-    "decorName" : "teleporteur",
-    "images" : 1,
-    "hasCollisions" : false,
-    "animationTime" : 0
+    "id": 4,
+    "name" : "teleporteur",
+    "class": "Teleporter",
+    "physicalCollisions" : false,
+    "animSpeed" : 0,
+    "animations": null
 }

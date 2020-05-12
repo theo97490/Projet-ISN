@@ -1,9 +1,8 @@
 {
-    "decorID": 1,
-    "type": "Decor",
-    "decorName" : "test",
-    "images" : 2,
-    "hasCollisions" : false,
-    "animationTime" : 1
-
+    "id": 1,
+    "name" : "test",
+    "class": "Decor",
+    "physicalCollisions" : false,
+    "animSpeed" : 30,
+    "animations" : [2, false]
 }

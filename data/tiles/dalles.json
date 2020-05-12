@@ -1,5 +1,7 @@
 {
-  "tileID" : 0,
-  "tileName" : "dalles",
-  "isWall" : false
+  "id" : 0,
+  "name" : "dalles",
+  "physicalCollisions" : false,
+  "animSpeed" : 0,
+  "animations": null
 }

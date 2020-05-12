@@ -1,6 +1,8 @@
 {
-    "tileID" : 2,
-    "tileName" : "grass0",
-    "isWall" : false
+    "id" : 2,
+    "name" : "grass0",
+    "physicalCollisions" : false,
+    "animSpeed" : 0,
+    "animations": null
   }
   

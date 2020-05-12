@@ -1,6 +1,8 @@
 {
-    "tileID" : 6,
-    "tileName" : "path",
-    "isWall" : false
+    "id" : 6,
+    "name" : "path",
+    "physicalCollisions" : false,
+    "animSpeed" : 0,
+    "animations": null
   }
   

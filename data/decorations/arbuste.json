@@ -1,9 +1,9 @@
 {
-    "decorID": 0,
-    "type": "Decor",
-    "decorName" : "arbuste",
-    "images" : 1,
-    "hasCollisions" : true,
-    "animationTime" : 0
+    "id": 0,
+    "name" : "arbuste",
+    "class": "Decor",
+    "physicalCollisions" : true,
+    "animSpeed" : 0,
+    "animations" : null
 
 }

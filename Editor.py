@@ -64,48 +64,78 @@ window.geometry(WIDTH.__str__()+"x"+HEIGHT.__str__()+"+"+"300+300")
 canvas = Canvas(window)
 canvas.pack(fill=BOTH, expand=1)
 
-class Res_Tile:
-    #Classe regroupe les propriétés d'une tile
-    def __init__(self, config: dict):
-        self.id = config['tileID']
-        self.name = config['tileName']
-        self.isWall = config['isWall']
-        #self.canTP = config['canTeleport']
-        self.texture = Image.open(tilesFolder + self.name + ".png").resize((size,size), Image.BOX)
-    
-    def getTexture(self, rotation: int = 0):
-        return ImageTk.PhotoImage(self.texture.rotate(rotation))
+class GameObjectRessource:
+    def __init__(self, path: str, config: dict):
+        self.id = config["id"]
+        self.name = config["name"]
+        self.animSpeed = config["animSpeed"]
+        self.collisions = config["physicalCollisions"]
+        self.animConfig = config["animations"]
+        self.animations = {}
 
-class Res_Decor:
-    def __init__(self, config: dict):
-        self.id = config['decorID']
-        self.type = config['type']
-        self.name = config['decorName']
-        self.images = config['images']
-        self.animTime = config['animationTime']
-        self.texture = []
+        texture = []
+        if type(self.animConfig) is dict:    
+            for key in self.animConfig:
+                spritesNumber = self.animConfig[key][0]
+                if spritesNumber > 1:
+                    for i in range(spritesNumber):
+                        if key == "Default":
+                            img = Image.open(path + self.name + i.__str__() + ".png")
+                        else:
+                            img = Image.open(path + self.name + "_" + key + i.__str__() + ".png")
 
-        self.collision = config['hasCollisions']
-        self.askParameters = None
+                        width, height = img.size
+                        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                        texture.append(img)
 
-        if self.type == "Teleporter":
-            self.askParameters = {"dx" : "Int", "dy": "Int"}            
+                elif spritesNumber == 1:
+                    if key == "Default":
+                        img = Image.open(path + self.name + ".png")
+                    else:
+                        img = Image.open(path + self.name + "_" + key + ".png")
 
-        if self.images > 1:
-            for i in range (self.images):
-                img = Image.open(decorsFolder + self.name + "-" + i.__str__() + ".png")
+                    width, height = img.size
+                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                    texture.append(img)
+                
+                self.animations[key] = texture
+
+
+        elif type(self.animConfig) is list:
+            spritesNumber = self.animConfig[0]
+            if spritesNumber > 1:
+                for i in range(spritesNumber):
+                    img = Image.open(path + self.name + i.__str__() + ".png")
+                    width, height = img.size
+                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                    texture.append(img)
+
+            elif spritesNumber == 1:
+                img = Image.open(path + self.name + ".png")
                 width, height = img.size
                 img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                self.texture.append(img)
+                texture.append(img)
+            
+            self.animConfig = {"Default": self.animConfig}
+            self.animations["Default"] = texture
 
-        elif self.images == 1:
-            img = Image.open(decorsFolder + self.name + ".png")
+        elif self.animConfig == None:
+            img = Image.open(path + self.name + ".png")
             width, height = img.size
             img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-            self.texture.append(img)
+            texture.append(img)
+            self.animations["Default"] = texture
 
-    def getTexture(self, index, rotation: int = 0):
-        return ImageTk.PhotoImage(self.texture[index].rotate(rotation))
+    def getTexture(self, key="Default", index=0, rotation=0):
+        return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
+
+class Res_Tile(GameObjectRessource):
+    pass
+
+class Res_Decor(GameObjectRessource):
+    def __init__(self, path: str,config: dict):
+        super().__init__(path, config)
+        self.className = config['class']
 
 class Res_Map:
     def __init__(self, directory: str ,config: dict):
@@ -114,147 +144,102 @@ class Res_Map:
         self.size = config['size'].lower()
         self.directory = directory
 
-class Res_Entity:
-    def __init__(self, directory: str, config: dict):
-        self.id = config['entityID']
-        self.name = config['name']
+class Res_Entity(GameObjectRessource):
+    def __init__(self, path: str, config: dict):
+        super().__init__(path, config)
         self.className = config['class']
-        self.type = config['type']
         self.speed = config['speed']
         self.size = config['size']
         self.side = config['side']
         self.health = config['health']
-        self.animSpeed = config['animSpeed']
-        self.baseAnim = config['baseAnim']
         self.contactDamage = config['contactDamage']
-        self.animations = {}
-        self.animConfig = animConfig = config['Animations']
-
-        self.width = None
-        self.height = None
-
-        for key in animConfig:
-            texture = []
-            spritesNumber = animConfig[key][0]
-            if spritesNumber > 1:
-                for i in range(spritesNumber):
-                    img = Image.open(entitiesFolder + directory + self.name + "_" + key + i.__str__() + ".png")
-                    width, height = img.size
-                    self.width, self.height = img.size
-                    #La taille de l'image ne doit pas etre variable
-                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                    texture.append(img)
-
-            elif spritesNumber == 1:
-                img = Image.open(entitiesFolder + directory + self.name + "_" + key + ".png")
-                width, height = img.size
-                self.width, self.height = img.size
-                #La taille de l'image ne doit pas etre variable
-                img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                texture.append(img)
-
-            self.animations[key] = texture
-    
-    def getTexture(self, key: str, index: int, rotation=0):
-        return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
-
-class BasicRessource:
-    def __init__(self, path: str, config: dict):
-        self.id = config["id"]
-        self.name = config["name"]
-        self.animSpeed = config["animSpeed"]
-        self.animConfig = config["animations"]
-        self.animations = {}
-
-        if type(animConfig) is dict:    
-            for key in animConfig:
-                texture = []
-                spritesNumber, loop = *animConfig[key]
-                if spritesNumber > 1:
-                    for i in range(spritesNumber):
-                        img = Image.open(path + self.name + "_" + key + i.__str__() + ".png")
-                        width, height = img.size
-                        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                        texture.append(img)
-
-                elif spritesNumber == 1:
-                    img = Image.open(entitiesFolder + directory + self.name + "_" + key + ".png")
-                    width, height = img.size
-                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                    texture.append(img)
-                
-                self.animations[key] = texture
-
-
-        elif type(animConfig) is list:
-            spritesNumber, loop = *animConfig
-            if spritesNumber > 1:
-                for i in range(spritesNumber):
-                    img = Image.open(path + self.name + "_" + key + i.__str__() + ".png")
-                    width, height = img.size
-                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                    texture.append(img)
-
-            elif spritesNumber == 1:
-                img = Image.open(entitiesFolder + directory + self.name + "_" + key + ".png")
-                width, height = img.size
-                img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                texture.append(img)
-            
-            self.animations["Default"] = texture
-
-    def getTexture(self, key="Default", index=0):
-        return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
-
-
         
 class BasicElement:
-    def __init__(self, id, resType, x: float, y: float, fix: bool, rotation = 0, tags = ""):
+    def __init__(self, id, resType: str, tileCoord: bool ,x: float, y: float, fix: bool, rotation = 0, tags = ""):
         self.res = getRes(resType, id)
         self._pendingAnimation = False
         self.x = x
         self.y = y
         self.rotation = rotation
 
-        self.image = None
-        self.obj = canvas.create_image(x + margin, y, tags="decor " + tags, image=self.image)
+        self.currAnim = "Default"
+        self.animSpeed = self.res.animSpeed
+        self.animCounter = 0
+        self.animTick = 0
+
+        if self.res.collisions:
+            tags += " collision "
+
+        self.image = self.res.getTexture(rotation=rotation)
+        if tileCoord:
+            self.obj = canvas.create_image(size*(x + 0.5) + margin, size*(y + 0.5), tags=tags, image=self.image)
+        else:
+            self.obj = canvas.create_image(x + margin, y, tags=tags, image=self.image)
+
         self.tkinterFix = None
         if fix:
             self.tkinterFix = TkinterFix(x, y, self)
+
+        self._pendingAnimation = window.after(tick * self.animSpeed, self.animate)
 
     def cleanUp(self):
         if self._pendingAnimation:
             window.after_cancel(self._pendingAnimation)
 
+        if self.tkinterFix != None:
+            self.tkinterFix.cleanUp()
+
         canvas.delete(self.obj)
 
     def animate(self):
-        pass
-
+        if self.res.animSpeed != 0 and not self.res.animConfig == None:
+            self._pendingAnimation = window.after(tick * self.res.animSpeed, self.animate)
+            self.nextSprite()
+                
     def nextSprite(self):
-        pass
+        images, loop = self.res.animConfig[self.currAnim]
+
+        if self.animCounter == images:
+            if loop:
+                self.animCounter = 0
+            else:
+                window.after_cancel(self._pendingAnimation)
+                self.OnAnimationEnd()
+                return
+            
+        self.image = self.res.getTexture(self.currAnim, self.animCounter, self.rotation)
+        canvas.itemconfig(self.obj, image=self.image)
+
+        self.animCounter += 1
+
+    def rotate(self, rotation, fixed=False):
+        if fixed:
+            self.rotation = rotation
+        else:
+            self.rotation += rotation
+
+        self.rotation -= self.rotation // 360 * 360
+
+        self.image = self.res.getTexture(self.currAnim, self.animCounter, self.rotation)
+        canvas.itemconfig(self.obj, image=self.image)
 
     def OnAnimationEnd(self):
         pass
+
+    def __eq__(self, other):
+        if self.obj == other:
+            return True
+        else:
+            return False
     
-
-
-
-class Entity:
-    def __init__(self, id, x: float, y: float, rotation=0):
+class Entity(BasicElement):
+    def __init__(self, id, x: float, y: float, rotation=0, tags=""):
         #if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
         #    raise Exception(x + " " + y + " Isn't a valid position for an Entity")
         #    breakpoint()
 
-        print("\n\n New Trace Stack =====================================================")
-        traceback.print_stack()
+        super().__init__(id, ENTITY, False, x, y, True, rotation, tags)
 
-        self.res = getRes(ENTITY, id)
-        self.x = float(x)
-        self.y = float(y)
-        self.rotation = rotation
-
-        self.type = self.res.type
         self.side = self.res.side
         self.health = self.res.health
         self.speed = self.res.speed
@@ -264,37 +249,23 @@ class Entity:
         self.invTick = 60
         self.invCounter = 0
         
-        self.currAnim = self.res.baseAnim
         self.lastAnim = None
-        self.animSpeed = self.res.animSpeed
-        self.animCounter = 0
-        self.animTick = 0
-
         self.timer = 0
-        self._pendingAnimation = None
+        
         self._pendingLoop = None
 
-        self.image = self.res.getTexture(self.currAnim, 0, rotation)
-        self.obj = canvas.create_image(x + margin, y, tags="entity", image=self.image)
-        
         self._pendingLoop = window.after(tick, self.loop)
-        self.fix = TkinterFix(self.x + margin, self.y, self)
 
-        if currWorld != None and not self in currWorld.currRegion.entities:
+        if currWorld != None:
             currWorld.currRegion.entities.append(self)
 
     def cleanUp(self):
-        if self._pendingAnimation != None:
-           window.after_cancel(self._pendingAnimation)
-           self._pendingAnimation = None
-
+        super().cleanUp()
         if self._pendingLoop != None:
             window.after_cancel(self._pendingLoop)
             self._pendingLoop = None
-
-        canvas.delete(self.obj)
-        self.fix.cleanUp()
         currWorld.currRegion.entities.remove(self)
+
 
     def move(self, dirx, diry):
         #dirx et diry sont des directions égales à 1 ou -1
@@ -321,7 +292,7 @@ class Entity:
         self.y += dy
 
         canvas.move(self.obj, dx ,dy)
-        self.fix.move(dx, dy)
+        self.tkinterFix.move(dx, dy)
     
     def moveTowards(self, x, y):
         norme = self.getDistance(x,y)
@@ -331,30 +302,12 @@ class Entity:
         self.move(x / norme, y / norme)
     
     def animate(self):
-        numberOfImages = self.res.animConfig[self.currAnim][0]
-        animLoop = self.res.animConfig[self.currAnim][1]
-
-        if self.animCounter == numberOfImages:
-                if animLoop:
-                    self.animCounter = 0
-                else:
-                    self.animEND()
-                    return END
-
         if self.currAnim != self.lastAnim:
                 self.lastAnim = self.currAnim
                 self.animCounter = 0
                 self.animTick = self.animSpeed
 
-        if self.animTick == self.animSpeed:
-            self.animTick = 0    
-            
-            self.image = self.res.getTexture(self.currAnim, self.animCounter, self.rotation)
-            canvas.itemconfig(self.obj, image=self.image)
-
-            self.animCounter += 1
-
-        self.animTick += 1
+        super().animate()
         return True
 
     def checkCollisions(self, dx, dy):
@@ -378,9 +331,6 @@ class Entity:
             raise Exception("Bad arguments in function getDistance")
             breakpoint()
 
-    def animEND(self):
-        pass
-
     def OnCollision(self):
         pass
 
@@ -396,7 +346,7 @@ class Entity:
     def loop(self):
         self.timer += 1
         self._pendingLoop = window.after(tick, self.loop)
-        self.animate()
+
 
     def __eq__(self, other):
         if self.obj == other:
@@ -407,13 +357,13 @@ class Entity:
 class TkinterFix:
     #Tkinter a une manière spéciale de déterminer qu'est ce qui a changé sur l'écran qui permet de sauver des performances,
     #Cette classe permet de forcer l'affichage des entités qui bougent sans qu'il y ait des bugs d'affichage
-    def __init__(self, x, y, entity, size=50):
+    def __init__(self, x, y, entity, size=10):
         x0, y0, x1, y1 = canvas.bbox(entity.obj)
 
         if showFixBbox:
-            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="", outline="")
-        else:
             self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="")
+        else:
+            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="", outline="")
 
     def move(self, dx, dy):
         canvas.move(self.obj, dx, dy)
@@ -425,6 +375,7 @@ class Mob(Entity):
     def __init__(self, id, x, y, rotation=0):
         super().__init__(id, x, y, rotation=rotation)
 
+        
         self.facingDirection = None 
 
     def move(self, dirx, diry):
@@ -437,7 +388,7 @@ class Mob(Entity):
         elif diry < 0:
             self.currAnim = self.facingDirection = DOWN
         else:
-            self.currAnim = "Idle"
+            self.currAnim = "Default"
 
         super().move(dirx, diry)
 
@@ -487,13 +438,10 @@ class Skill(Entity):
         super().__init__(id, x, y, rotation)
         self.animStatus = None
 
-    def animEND(self):
+    def OnAnimationEnd(self):
+        self.animStatus = END
         self.cleanUp()
-
-    def loop(self):
-        self._pendingLoop = window.after(tick, self.loop)
-        self.animStatus = self.animate()
-        
+      
 class Player(Mob):
     #Classe singleton
     def __init__(self, x: float, y: float):
@@ -508,7 +456,7 @@ class Player(Mob):
         window.bind("<KeyPress-a>", lambda event: self.setAction("Melee"))
         window.bind("<KeyPress-e>", lambda event: self.setAction("Use"))
         window.bind("<KeyPress-z>", lambda event: self.setAction("Shoot"))
-
+    
     def meleeAttack(self):
         self._pendingMelee = window.after(tick, self.meleeAttack)
         self.action = "Pending"
@@ -629,115 +577,41 @@ class Projectile(Entity):
         super().loop()
         canvas.update()
 
-class Tile:
+class Tile(BasicElement):
     def __init__(self, id, x: int, y: int, rotation: int = 0):
-        self.res = getRes(TILE, id)       
-        self.rotation = rotation
-        self.image = self.res.getTexture(rotation)
-        self.x = x
-        self.y = y
-        self.obj = canvas.create_image(margin + size*(x + 0.5), size*(y + 0.5), tags="tile", image=self.image)
-    
-    def cleanUp(self):
-        canvas.delete(self.obj)
-
-    def rotate(self, rotation: int, fixed: bool = False):
-        if fixed:
-            self.rotation = rotation 
-        else:
-            self.rotation += rotation 
-
-        self.rotation = self.rotation - 360 * (self.rotation // 360)
-        print(360 * (self.rotation // 360))
-
-        self.image = self.res.getTexture(self.rotation)
-        canvas.itemconfig(self.obj, image=self.image)
+        super().__init__(id, TILE, True, x, y, False, rotation)
 
     def changeTile(self, id):
-        self.res = getRes(TILE, id)
-        self.image = self.res.getTexture(self.rotation)
-        canvas.itemconfig(self.obj, image=self.image)
+        self.__init__(id, self.x, self.y)
 
-    def __eq__(self, other):
-        if self.obj == other:
-            return True
-        else:
-            return False
+    def cleanUp(self):
+        super().cleanUp()
+        #currWorld.currRegion.tiles.remove(self)
+    
 
-class Decor:
+class Decor(BasicElement):
     def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = "", **kwargs):
 
         if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
             raise Exception(x + " " + y + " Isn't a valid position for a Decor")
             breakpoint()
 
-        self.res = getRes(DECOR, id)
-        self.x = x
-        self.y = y
-        self.rotation = rotation
+        super().__init__(id, DECOR, False, x, y, False, rotation, "decor "+ tags)
 
-        #Seulement pour l'éditeur de map, nécéssaire pour les teleporteurs par exemple, pour les décors
-        #qui ont besoins plus d'information
         self.arguments = None
-
-        self.image = self.res.getTexture(0)
-        
-        if self.res.collision:
-            tags += " collision"
-
-        self.obj = canvas.create_image(x + margin, y, tags="decor " + tags, image=self.image)
-
-        self.animCounter = -1
-        self._pendingAnimation = False
-
-        if self.res.images > 1 and self.res.animTime != 0:
-            self._pendingAnimation = window.after(self.res.animTime * 1000, self.animate)
-
-        if currWorld != None and not self in currWorld.currRegion.decors:
+        if currWorld != None:
             currWorld.currRegion.decors.append(self)
-
-    def cleanUp(self):
-        #Fonction à utiliser avant de supprimer cet objet
-        #Ne pas définir la fonction intégrée __del__(self) car elle pose problème 
-        if self._pendingAnimation != False:
-            window.after_cancel(self._pendingAnimation)
-
-        currWorld.currRegion.decors.remove(self)
-        canvas.delete(self.obj)
-
-    def animate(self):
-        self._pendingAnimation = window.after(self.res.animTime * 1000, self.animate)
-        self.nextSprite()
-
-    def nextSprite(self):
-        self.animCounter += 1
-        if self.animCounter == self.res.images:
-            self.animCounter = 0
-
-        self.image = self.res.getTexture(self.animCounter)
-        canvas.itemconfig(self.obj, image=self.image)
-
-    def changeDecor(self, id):
-        if self._pendingAnimation != False:
-            window.after_cancel(self._pendingAnimation)
-            self._pendingAnimation = False
-
-        self.res = getRes(DECOR, id)
-        self.image = ImageTk.PhotoImage(self.res.images[0])
-        canvas.itemconfig(self.obj, image=self.image)
     
+    def cleanUp(self):
+        super().cleanUp()
+        currWorld.currRegion.decors.remove(self)
+
     def OnUse(self):
         pass
 
     def OnWalk(self):
         pass
 
-    def __eq__(self, other):
-        if self.obj == other:
-            return True
-        else:
-            return False
-        
 class Chest(Decor):
     def __init__(self, *args):
         super().__init__(*args, tags="usable")
@@ -748,6 +622,8 @@ class Chest(Decor):
         print("[CHEST] Player current currency : " + player.currency.__str__())
 
 class Teleporter(Decor):
+    parameters = {"dx": "Int", "dy": "Int"}
+
     def __init__(self, *args, **kw):
         super().__init__(*args, tags="walk")
         self.dir = (kw["dx"], kw["dy"])
@@ -780,17 +656,18 @@ class Region:
                 for decor in data['decor']:
                     if len(decor) == 3:
                         if decor[2] != None:
-                            decor = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).type)(decor[0], *decor[1], **decor[2])
+                            obj = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).className)(decor[0], *decor[1], **decor[2])
                         else:
-                            decor = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).type)(decor[0], *decor[1])
+                            obj = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).className)(decor[0], *decor[1])
+
                     if currWorld == None:
-                        self.decors.append(decor)
+                        self.decors.append(obj)
 
                 for entity in data['entities']:
                     #TODO Maybe faire comme au desus
-                    entity = getattr(sys.modules[__name__], getRes(ENTITY, entity[0]).className)(entity[0], *entity[1])
+                    obj = getattr(sys.modules[__name__], getRes(ENTITY, entity[0]).className)(entity[0], *entity[1])
                     if currWorld == None:
-                        self.entities.append(entity)
+                        self.entities.append(obj)
 
                 return True
         except:
@@ -983,16 +860,16 @@ def initRessources():
         for config in tile_configs:
             with open(tilesFolder + config) as file:
                 js = json.load(file)
-                if js['tileID'] == id:
-                    resTiles.append(Res_Tile(js))
+                if js['id'] == id:
+                    resTiles.append(Res_Tile(tilesFolder,js))
                     break
     
     for id in range(len(decor_configs)):
         for config in decor_configs:
             with open(decorsFolder + config) as file:
                 js = json.load(file)
-                if js['decorID'] == id:
-                    resDecors.append(Res_Decor(js))
+                if js['id'] == id:
+                    resDecors.append(Res_Decor(decorsFolder,js))
                     break
     
     #Non utilisé
@@ -1008,8 +885,8 @@ def initRessources():
         for entity in eNames:
             with open(entitiesFolder + entity + "config.json") as file:
                 js = json.load(file)
-                if js['entityID'] == id:
-                    resEntities.append(Res_Entity(entity, js))
+                if js['id'] == id:
+                    resEntities.append(Res_Entity(entitiesFolder + entity, js))
                     break
         
 def importFile():
@@ -1109,34 +986,41 @@ def OnClick(event):
     elif currentMode == DECOR:
         if event.num == 1:
             res: Res_Decor = getRes(DECOR, name)
-            if [word for word in ["Teleporter"] if res.type == word]:
+            tempClass = getattr(sys.modules[__name__], res.className)
+            if [word for word in ["Teleporter"] if res.className == word]:
                 kw = {}
-                for key in res.askParameters:
+                parameters = tempClass.parameters
+                for key in parameters:
                     val = 0
-                    if res.askParameters[key] == "Int":
+                    if parameters[key] == "Int":
                         val = simpledialog.askinteger("Tkinter", "Ce décor a des paramètres supplémentaires à saisir \n Entrez " + key + " de type Integer" )
-                    elif res.askParameters[key] == "String":
+                    elif parameters[key] == "String":
                         val = simpledialog.askstring("Tkinter", "Ce décor a des paramètres supplémentaires à saisir \n Entrez " + key + " de type String" )
                     kw[key] = val
 
-                getattr(sys.modules[__name__], res.type )(name, event.x - margin, event.y, **kw)
+                decor = tempClass(name, event.x - margin, event.y, **kw)
             else:
-                getattr(sys.modules[__name__], res.type )(name, event.x - margin, event.y)
+                decor = tempClass(name, event.x - margin, event.y)
+            
 
         elif event.num == 3:
             items = canvas.find_overlapping(event.x, event.y, event.x, event.y)
             decor = findObjectByTag(DECOR, items, "decor", first=True)
             if decor != None:
                 decor.cleanUp()
+                
 
 
     elif currentMode == ENTITY:
         if event.num == 1:
             res: Res_Entity = getRes(ENTITY, name)
             if res.name == "player":
-                getattr(sys.modules[__name__], res.className)(event.x - margin, event.y)
+                entity = getattr(sys.modules[__name__], res.className)(event.x - margin, event.y)
             else:
-                getattr(sys.modules[__name__], res.className)(res.id, event.x - margin, event.y)
+                entity = getattr(sys.modules[__name__], res.className)(res.id, event.x - margin, event.y)
+
+            
+            
 
         elif event.num == 3:
             found = False
@@ -1144,6 +1028,7 @@ def OnClick(event):
             entity = findObjectByTag(ENTITY, items, "entity", first=True)
             if entity != None:
                 entity.cleanUp()
+                
 
 def switchMode(mode: str):
     global currentMode

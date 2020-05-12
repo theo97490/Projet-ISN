@@ -1,16 +1,13 @@
 {
-    "entityID": 3,
+    "id": 3,
     "name": "arrow",
     "class": "Projectile",
-    "type": "Projectile",
     "side": "Passive",
+    "physicalCollisions": false,
     "health": 1,
     "contactDamage": 50,
     "speed": 20,
     "size": 1.0,
-    "animSpeed": 5,
-    "baseAnim": "anim", 
-    "Animations": {
-        "anim": [1, true]        
-    }
+    "animSpeed": 0, 
+    "animations": null
 }

@@ -1,5 +1,8 @@
 {
-  "tileID" : 1,
-  "tileName" : "black",
-  "isWall" : false
+  "id" : 1,
+  "name" : "black",
+  "physicalCollisions" : false,
+  "animSpeed" : 0,
+  "animations": null
 }
+

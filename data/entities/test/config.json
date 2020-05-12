@@ -1,5 +1,5 @@
 {
-    "entityID": 1,
+    "id": 1,
     "name": "test",
     "class": "Mob",
     "type": "Mob",
@@ -8,9 +8,7 @@
     "contactDamage": 40,
     "speed": 2,
     "size": 1.0,
-    "animSpeed": 100000,
-    "baseAnim": "Idle",
-    "Animations": {
-        "Idle": [1, false]
-    }
+    "animSpeed": 0,
+    "animations": null,
+    "physicalCollisions" : false
 }

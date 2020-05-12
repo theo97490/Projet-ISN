@@ -1,22 +1,20 @@
 {
-    "entityID": 0,
+    "id": 0,
     "name": "player",
     "class": "Player",
-    "type": "Player",
     "side": "Passive",
     "health": 100,
     "contactDamage": 0,
     "speed": 10,
     "size": 1.0,
-    "animSpeed": 40,
-    "baseAnim": "Idle", 
-    "Animations": {
+    "animSpeed": 40, 
+    "physicalCollisions" : false,
+    "animations": {
         "Up": [1, true ],
         "Down": [1, true ],
         "Left": [1, true ],
         "Right": [1, true ],
 
-        "Idle": [1, false ]
-        
+        "Default": [1, false ]
     }
 }
