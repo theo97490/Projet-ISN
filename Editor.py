@@ -156,7 +156,89 @@ class Res_Entity:
     
     def getTexture(self, key: str, index: int, rotation=0):
         return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
-  
+
+class BasicRessource:
+    def __init__(self, path: str, config: dict):
+        self.id = config["id"]
+        self.name = config["name"]
+        self.animSpeed = config["animSpeed"]
+        self.animConfig = config["animations"]
+        self.animations = {}
+
+        if type(animConfig) is dict:    
+            for key in animConfig:
+                texture = []
+                spritesNumber, loop = *animConfig[key]
+                if spritesNumber > 1:
+                    for i in range(spritesNumber):
+                        img = Image.open(path + self.name + "_" + key + i.__str__() + ".png")
+                        width, height = img.size
+                        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                        texture.append(img)
+
+                elif spritesNumber == 1:
+                    img = Image.open(entitiesFolder + directory + self.name + "_" + key + ".png")
+                    width, height = img.size
+                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                    texture.append(img)
+                
+                self.animations[key] = texture
+
+
+        elif type(animConfig) is list:
+            spritesNumber, loop = *animConfig
+            if spritesNumber > 1:
+                for i in range(spritesNumber):
+                    img = Image.open(path + self.name + "_" + key + i.__str__() + ".png")
+                    width, height = img.size
+                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                    texture.append(img)
+
+            elif spritesNumber == 1:
+                img = Image.open(entitiesFolder + directory + self.name + "_" + key + ".png")
+                width, height = img.size
+                img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+                texture.append(img)
+            
+            self.animations["Default"] = texture
+
+    def getTexture(self, key="Default", index=0):
+        return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
+
+
+        
+class BasicElement:
+    def __init__(self, id, resType, x: float, y: float, fix: bool, rotation = 0, tags = ""):
+        self.res = getRes(resType, id)
+        self._pendingAnimation = False
+        self.x = x
+        self.y = y
+        self.rotation = rotation
+
+        self.image = None
+        self.obj = canvas.create_image(x + margin, y, tags="decor " + tags, image=self.image)
+        self.tkinterFix = None
+        if fix:
+            self.tkinterFix = TkinterFix(x, y, self)
+
+    def cleanUp(self):
+        if self._pendingAnimation:
+            window.after_cancel(self._pendingAnimation)
+
+        canvas.delete(self.obj)
+
+    def animate(self):
+        pass
+
+    def nextSprite(self):
+        pass
+
+    def OnAnimationEnd(self):
+        pass
+    
+
+
+
 class Entity:
     def __init__(self, id, x: float, y: float, rotation=0):
         #if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
@@ -325,15 +407,12 @@ class TkinterFix:
     #Tkinter a une manière spéciale de déterminer qu'est ce qui a changé sur l'écran qui permet de sauver des performances,
     #Cette classe permet de forcer l'affichage des entités qui bougent sans qu'il y ait des bugs d'affichage
     def __init__(self, x, y, entity, size=50):
-        bbox = canvas.bbox(entity.obj)
-        
-        height = entity.res.height
-        width = entity.res.width
+        x0, y0, x1, y1 = canvas.bbox(entity.obj)
 
         if showFixBbox:
-            self.obj = canvas.create_rectangle(x - width/2 - size, y - height/2 - size, x + width/2 + size, y + height/2 + size, fill="", outline="")
+            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="", outline="")
         else:
-            self.obj = canvas.create_rectangle(x - width/2 - size, y - height/2 - size, x + width/2 + size, y + height/2 + size, fill="")
+            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="")
 
     def move(self, dx, dy):
         canvas.move(self.obj, dx, dy)
@@ -513,6 +592,7 @@ class Player(Mob):
             if arrowsStatus[DOWN]: diry -= 1
             if arrowsStatus[LEFT]: dirx -= 1
             if arrowsStatus[RIGHT]: dirx += 1
+            self.move(dirx, diry)
 
         elif self.action != "Pending":
             if self.action == "Melee": self.meleeAttack()
@@ -520,7 +600,7 @@ class Player(Mob):
             if self.action == "Shoot": self.shootArrow()
             
 
-        self.move(dirx, diry)
+        
 
         super().loop()
 
@@ -548,7 +628,6 @@ class Projectile(Entity):
         super().loop()
         canvas.update()
 
- 
 class Tile:
     def __init__(self, id, x: int, y: int, rotation: int = 0):
         self.res = getRes(TILE, id)       
@@ -603,7 +682,7 @@ class Decor:
         self.image = self.res.getTexture(0)
         
         if self.res.collision:
-            tags += "collision"
+            tags += " collision"
 
         self.obj = canvas.create_image(x + margin, y, tags="decor " + tags, image=self.image)
 
@@ -645,34 +724,29 @@ class Decor:
         self.res = getRes(DECOR, id)
         self.image = ImageTk.PhotoImage(self.res.images[0])
         canvas.itemconfig(self.obj, image=self.image)
+    
+    def OnUse(self):
+        pass
+
+    def OnWalk(self):
+        pass
 
     def __eq__(self, other):
         if self.obj == other:
             return True
         else:
             return False
-
-class Interactable(Decor):
-    #Tags:  "usable" pour OnUse()
-    #       "walk" pour OnWalk()
-    #       
-    def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = ""):
-        super().__init__(id , x ,y, rotation, tags = tags)
-    
-
-    def OnUse(self):
-        pass
-
-    def OnWalk(self):
-        pass
         
-class Chest(Interactable):
+class Chest(Decor):
+    def __init__(self, *args):
+        super().__init__(*args, tags="usable")
+        
     def OnUse(self, player: Player):
         self.nextSprite()
         player.currency += 20
         print("[CHEST] Player current currency : " + player.currency.__str__())
 
-class Teleporter(Interactable):
+class Teleporter(Decor):
     def __init__(self, *args, **kw):
         super().__init__(*args, tags="walk")
         self.dir = (kw["dx"], kw["dy"])

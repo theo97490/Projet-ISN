@@ -1,0 +1,7 @@
+{
+    "id": 0,
+    "name": "Ressource",
+    "type": "Ressource",
+    "animspeed": 10,
+    "animations": [10, true]
+}

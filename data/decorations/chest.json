@@ -1,6 +1,6 @@
 {
     "decorID": 2,
-    "type": "Decor",
+    "type": "Chest",
     "decorName" : "chest",
     "images" : 2,
     "hasCollisions" : true,

@@ -219,11 +219,6 @@ class Player(Entity):
 
         self.animate()
 
-class GeneralMobAI(Entity):
-    def AI(self):
-        #AI a ecrire ici
-        pass
-
 class Tile:
     def __init__(self, id, x: int, y: int, rotation: int = 0):
         self.res = getRes(TILE, id)       
