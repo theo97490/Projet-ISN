@@ -4,6 +4,8 @@ import os, json
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import simpledialog
+from tkinter.font import Font
+
 import traceback
 import random
 
@@ -30,10 +32,13 @@ tick = 15 #Environs 1 update par frame
 TILE = "TILE"
 DECOR = "DECOR"
 ENTITY = "ENTITY"
+DIALOG = "DIALOG"
 UP = "Up"
 DOWN = "Down"
 LEFT = "Left"
 RIGHT = "Right"
+
+globalTimerStop = False
 
 #Chemins de dossier
 tilesFolder = "./data/tiles/"
@@ -41,12 +46,14 @@ mapsFolder = "./data/maps/"
 saveFolder = "./data/saves/"
 decorsFolder = "./data/decorations/"
 entitiesFolder = "./data/entities/"
+dialogsFolder = "./data/dialogs/"
 
 currWorld = None
 resTiles = []
 resDecors = []
 resMaps = []
 resEntities = []
+resDialogs = []
 worlds = []
 
 #Grille
@@ -65,7 +72,7 @@ window.geometry(WIDTH.__str__()+"x"+HEIGHT.__str__()+"+"+"300+300")
 canvas = Canvas(window)
 canvas.pack(fill=BOTH, expand=1)
 
-class GameObjectRessource:
+class Ressource:
     def __init__(self, path: str, config: dict):
         self.id = config["id"]
         self.name = config["name"]
@@ -75,77 +82,60 @@ class GameObjectRessource:
         self.animations = {}
 
         texture = []
-        if type(self.animConfig) is dict:    
+
+        if type(self.animConfig) is dict:
             for key in self.animConfig:
                 spritesNumber = self.animConfig[key][0]
                 if spritesNumber > 1:
                     for i in range(spritesNumber):
                         if key == "Default":
-                            img = Image.open(path + self.name + i.__str__() + ".png")
+                            texture.append(self.__texture(path + self.name + i.__str__() + ".png"))
                         else:
-                            img = Image.open(path + self.name + "_" + key + i.__str__() + ".png")
-
-                        width, height = img.size
-                        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                        texture.append(img)
-
+                            texture.append(self.__texture(path + self.name + "_" + key + i.__str__() + ".png"))
+                    
                 elif spritesNumber == 1:
                     if key == "Default":
-                        img = Image.open(path + self.name + ".png")
+                        texture.append(self.__texture(path + self.name + ".png"))
                     else:
-                        img = Image.open(path + self.name + "_" + key + ".png")
-
-                    width, height = img.size
-                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                    texture.append(img)
+                        texture.append(self.__texture(path + self.name + "_" + key + ".png"))
                 
                 self.animations[key] = texture
-
 
         elif type(self.animConfig) is list:
             spritesNumber = self.animConfig[0]
             if spritesNumber > 1:
                 for i in range(spritesNumber):
-                    img = Image.open(path + self.name + i.__str__() + ".png")
-                    width, height = img.size
-                    img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                    texture.append(img)
+                    texture.append(self.__texture(path + self.name + i.__str__() + ".png"))
 
             elif spritesNumber == 1:
-                img = Image.open(path + self.name + ".png")
-                width, height = img.size
-                img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-                texture.append(img)
-            
+                texture.append(self.__texture(path + self.name + ".png"))
+                
             self.animConfig = {"Default": self.animConfig}
             self.animations["Default"] = texture
 
         elif self.animConfig == None:
-            img = Image.open(path + self.name + ".png")
-            width, height = img.size
-            img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-            texture.append(img)
+            texture.append(self.__texture(path + self.name + ".png"))
             self.animations["Default"] = texture
+
+
+    def __texture(self, path):
+        img = Image.open(path)
+        width, height = img.size
+        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+        return img 
 
     def getTexture(self, key="Default", index=0, rotation=0):
         return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
 
-class Res_Tile(GameObjectRessource):
+class Res_Tile(Ressource):
     pass
 
-class Res_Decor(GameObjectRessource):
+class Res_Decor(Ressource):
     def __init__(self, path: str,config: dict):
         super().__init__(path, config)
         self.className = config['class']
 
-class Res_Map:
-    def __init__(self, directory: str ,config: dict):
-        self.id = config['mapID']
-        self.name = config['mapName']
-        self.size = config['size'].lower()
-        self.directory = directory
-
-class Res_Entity(GameObjectRessource):
+class Res_Entity(Ressource):
     def __init__(self, path: str, config: dict):
         super().__init__(path, config)
         self.className = config['class']
@@ -154,7 +144,36 @@ class Res_Entity(GameObjectRessource):
         self.side = config['side']
         self.health = config['health']
         self.contactDamage = config['contactDamage']
+        self.dialogs = None
+
+        if self.className == "NPC":
+            pass
+
+class Res_Map:
+    def __init__(self, directory: str ,config: dict):
+        self.id = config['mapID']
+        self.name = config['mapName']
+        self.size = config['size'].lower()
+        self.directory = directory
+
         
+class Res_Dialog:
+    def __init__(self, id, name, texts, dialogs):
+        self.id = id
+        self.name = name
+        self.texts = texts
+        self.dialogs = dialogs
+
+    def getDialog(self, index, i):
+        string = ""
+        for a in range(len(self.dialogs[index][i])):
+            string += self.texts[self.dialogs[index][i][a]]
+        return string
+
+    def getLen(self, index):
+        return len(self.dialogs[index])
+
+
 class BasicElement:
     def __init__(self, id, resType: str, tileCoord: bool ,x: float, y: float, fix: bool, rotation = 0, tags = ""):
         self.res = getRes(resType, id)
@@ -254,7 +273,7 @@ class Entity(BasicElement):
         
         self._pendingLoop = None
 
-        self._pendingLoop = window.after(tick, self.loop)
+        self._pendingLoop = window.after(tick, self.outerLoop)
 
         if currWorld != None:
             currWorld.currRegion.entities.append(self)
@@ -342,10 +361,14 @@ class Entity(BasicElement):
     
     def OnHit(self):
         pass
+    
+    def outerLoop(self):
+        self._pendingLoop = window.after(tick, self.outerLoop)
+        if not globalTimerStop:
+            self.loop()
 
     def loop(self):
-        self._pendingLoop = window.after(tick, self.loop)
-
+        pass
 
     def __eq__(self, other):
         if self.obj == other:
@@ -477,7 +500,6 @@ class MeleeEnemy(Mob):
             else :
                 self.direction = (0, -1)
 
-        
         
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
@@ -622,6 +644,61 @@ class Projectile(Entity):
         #self.moveTowards(player.x, player.y)
         super().loop()
         canvas.update()
+
+class NPC(Mob):
+    def __init__(self, id, x, y):
+        super().__init__(id, x, y)
+        #,,,
+    
+    def OnUse(self, entity):
+        pass
+
+class Dialog:
+    def __init__(self, id):
+        global globalTimerStop
+        
+        self.res = getRes(DIALOG, id)
+        temp = Image.open(dialogsFolder + "dialog_frame.png")
+        width, height = temp.size
+        self.img = ImageTk.PhotoImage(temp.resize((int(width * size/32), int(height * size/32)), Image.BOX))
+        #self.obj = None
+        self.label = None
+        self.font = Font(family="Times New Roman", size=24)
+        self.enabled = False
+        self.i = 0
+        self.dialIndex = 0
+
+        globalTimerStop = True
+        self.funcID = window.bind("<KeyPress>", lambda event: self.next())
+
+
+    def cleanUp(self):
+        global globalTimerStop
+        
+        self.enabled = False
+        globalTimerStop = False
+        window.unbind("<KeyPress>", self.funcID)
+        self.label.destroy()
+
+
+    def next(self):
+        self.i += 1
+        if self.i + 1 < self.res.getLen(self.dialIndex):
+            self.label.config(text=self.res.getDialog(self.dialIndex, self.i))
+        else:
+            self.cleanUp()
+            return END
+
+    def show(self, index):
+        self.enabled = True
+        self.i = 0 
+        #self.obj = canvas.create_image(caseX * size / 2 + margin, 3*HEIGHT/4,image=self.img)
+        self.dialIndex = index
+        self.label = Label(window, font=self.font, text=self.res.getDialog(index, self.i), image=self.img, compound=CENTER)
+        self.label.place(x=caseX * size/2 + margin - 4.5*size, y=3*HEIGHT/4 - size)
+
+        
+
 
 class Tile(BasicElement):
     def __init__(self, id, x: int, y: int, rotation: int = 0):
@@ -849,6 +926,8 @@ def getRes(ressource, id):
         res = resDecors
     elif ressource == ENTITY:
         res = resEntities
+    elif ressource == DIALOG:
+        res = resDialogs
     else:
         raise Exception('Ressource type not properly defined')
         breakpoint()
@@ -868,6 +947,7 @@ def initRessources():
     decor_configs = []
     wNames = []
     eNames = []
+    dialNames = []
 
     #Tiles
     for (dirpath, dirnames, filenames) in os.walk(tilesFolder):
@@ -900,6 +980,18 @@ def initRessources():
                     if "config.json" in file:
                         eNames.append(folder + "/")
                         break
+        break
+    
+    #Dialogs
+    for (dirpath, dirnames, filenames) in os.walk(dialogsFolder):
+        for filename in filenames:
+            if ".json" in filename:
+                for (_dirpath, _dirnames, _filenames) in os.walk(dialogsFolder):
+                    for _filename in _filenames:
+                        if filename.replace(".json", ".txt") in _filename:
+                            dialNames.append(filename.replace(".json", ""))
+                            break
+                    break           
         break
 
     for id in range(len(tile_configs)):
@@ -934,6 +1026,19 @@ def initRessources():
                 if js['id'] == id:
                     resEntities.append(Res_Entity(entitiesFolder + entity, js))
                     break
+
+    for id in range(len(dialNames)):
+        for dial in dialNames:
+            with open(dialogsFolder + dial + ".json") as jsonFile:
+                js = json.load(jsonFile)
+                if "id" in js and "dialogs" in js and js["id"] == id:
+                    with open(dialogsFolder + dial + ".txt") as dialogFile:
+                        text = dialogFile.readlines()
+                        resDialogs.append(Res_Dialog(js["id"], dial, text, js["dialogs"]))
+                else:
+                    raise Exception("Json file doesn't either contain 'id' or 'dialogs' keys or an error occured while reading dialog texts")
+
+
         
 def importFile():
     #path = filedialog.askopenfilename(initialdir = saveFolder ,title = "Select Region Map ",filetypes = (("data files","*.data"),("all files","*.*")))
@@ -1033,7 +1138,7 @@ def OnClick(event):
         if event.num == 1:
             res: Res_Decor = getRes(DECOR, name)
             tempClass = getattr(sys.modules[__name__], res.className)
-            if [word for word in ["Teleporter"] if res.className == word]:
+            if hasattr(tempClass, "parameters"):
                 kw = {}
                 parameters = tempClass.parameters
                 for key in parameters:
@@ -1170,7 +1275,7 @@ window.bind('<Escape>', Debug)
 #Tests
 player = Player(3* size, 3* size)
 Chest("chest", 5 * size, 3 * size)
-
-
+dialog = Dialog("oldman")
+dialog.show(0)
 
 window.mainloop()
