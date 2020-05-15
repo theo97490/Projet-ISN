@@ -366,6 +366,11 @@ class Entity(BasicElement):
         self._pendingLoop = window.after(tick, self.outerLoop)
         if not globalTimerStop:
             self.loop()
+        else:
+            self.timeStopLoop()
+        
+    def timeStopLoop(self):
+        pass 
 
     def loop(self):
         pass
@@ -394,8 +399,8 @@ class TkinterFix:
         canvas.delete(self.obj)
 
 class Mob(Entity):
-    def __init__(self, id, x, y, rotation=0):
-        super().__init__(id, x, y, rotation=rotation)
+    def __init__(self, id, x, y, rotation=0, tags=""):
+        super().__init__(id, x, y, rotation=rotation, tags=tags)
 
         
         self.facingDirection = None 
@@ -499,7 +504,6 @@ class MeleeEnemy(Mob):
                 self.direction = (0, 1)
             else :
                 self.direction = (0, -1)
-
         
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
@@ -525,6 +529,7 @@ class Player(Mob):
         window.bind("<KeyPress-a>", lambda event: self.setAction("Melee"))
         window.bind("<KeyPress-e>", lambda event: self.setAction("Use"))
         window.bind("<KeyPress-z>", lambda event: self.setAction("Shoot"))
+
     
     def meleeAttack(self):
         self._pendingMelee = window.after(tick, self.meleeAttack)
@@ -594,6 +599,10 @@ class Player(Mob):
         usable = findObjectByTag(DECOR, items, "usable", first=True)
         if usable != None:
             usable.OnUse(self)
+        else:
+            usable = findObjectByTag(ENTITY, items, "usable", first=True)
+            if usable != None:
+                usable.OnUse(self)
         
         self.action = None
 
@@ -621,6 +630,9 @@ class Player(Mob):
         super().loop()
         self.timer += 1
 
+    def timeStopLoop(self):
+        self.action = None
+
 class Projectile(Entity):
     def __init__(self, id, x, y, dirx, diry, rotation=0):
         super().__init__(id, x, y, rotation=rotation)
@@ -646,16 +658,27 @@ class Projectile(Entity):
         canvas.update()
 
 class NPC(Mob):
-    def __init__(self, id, x, y):
-        super().__init__(id, x, y)
-        #,,,
-    
-    def OnUse(self, entity):
+    def __init__(self, id, x, y, dialogID):
+        super().__init__(id, x, y, tags="usable")
+        self.dialogID = dialogID
+        self.dialog = Dialog(self.dialogID)
+        self.index = 0
+
+
+    def cleanUp(self):
+        super().cleanUp()
+        self.dialog.cleanUp()
+
+    def timeStopLoop(self):
+        #Utilisez cette loop pour animer le npc lorsque
+        #le temps est arrété
         pass
+
+    def OnUse(self, entity):
+        self.dialog.show(self.index)
 
 class Dialog:
     def __init__(self, id):
-        global globalTimerStop
         
         self.res = getRes(DIALOG, id)
         temp = Image.open(dialogsFolder + "dialog_frame.png")
@@ -664,40 +687,93 @@ class Dialog:
         #self.obj = None
         self.label = None
         self.font = Font(family="Times New Roman", size=24)
-        self.enabled = False
         self.i = 0
         self.dialIndex = 0
-
-        globalTimerStop = True
-        self.funcID = window.bind("<KeyPress>", lambda event: self.next())
-
+        
+        self.funcID = None
+        self.end = False
 
     def cleanUp(self):
         global globalTimerStop
-        
-        self.enabled = False
+
+        self.end = False
+        self.reset()
         globalTimerStop = False
-        window.unbind("<KeyPress>", self.funcID)
-        self.label.destroy()
+
+    def reset(self):
+        self.i = 0 
+        if self.funcID != None:
+            window.unbind("<KeyPress-f>", self.funcID)
+            self.funcID = None
+
+        if self.label != None:
+            self.label.destroy()
 
 
     def next(self):
-        self.i += 1
-        if self.i + 1 < self.res.getLen(self.dialIndex):
-            self.label.config(text=self.res.getDialog(self.dialIndex, self.i))
-        else:
-            self.cleanUp()
-            return END
+        if not self.end:
+            self.i += 1
+            if self.i < self.res.getLen(self.dialIndex):
+                self.label.config(text=self.res.getDialog(self.dialIndex, self.i))
+            else:
+                self.end = True
+                self.reset()
 
     def show(self, index):
-        self.enabled = True
-        self.i = 0 
-        #self.obj = canvas.create_image(caseX * size / 2 + margin, 3*HEIGHT/4,image=self.img)
+        global globalTimerStop
+
+        self.end = False
+        globalTimerStop = True
+        
+        
+        self.funcID = window.bind("<KeyPress-f>", lambda event: self.next())
         self.dialIndex = index
-        self.label = Label(window, font=self.font, text=self.res.getDialog(index, self.i), image=self.img, compound=CENTER)
+        self.label = Label(window, font=self.font, text=self.res.getDialog(index, self.i), image=self.img,borderwidth=0,compound=CENTER, relief=FLAT)
         self.label.place(x=caseX * size/2 + margin - 4.5*size, y=3*HEIGHT/4 - size)
 
-        
+class Jhony(NPC):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.step = 0 #Avancement
+
+        self.moveTick_1 = int(3*size/self.speed)
+        self.moveTick_2 = int(2*size/self.speed)
+
+    def OnUse(self, *args):
+        if self.dialog == None:
+            self.dialog = Dialog("oldman")
+        if self.step == 0:
+            self.dialog.show(0)
+        if self.step >= 2:
+            self.dialog.show(1)
+
+
+    def timeStopLoop(self):
+        if self.dialog.end:
+            if self.step == 2:
+                self.dialog.cleanUp()
+
+            if self.step == 1:
+                self.dialog.show(1)
+                self.step += 1
+
+            if self.step == 0:
+                if self.moveTick_1 > 1:
+                    self.moveTick_1 -= 1
+                    self.move(0, 1)
+
+                elif self.moveTick_2 > 1:
+                    self.moveTick_2 -= 1
+                    self.move(1, 0)
+                else:
+                    self.step += 1
+
+
+
+                
+
+
+
 
 
 class Tile(BasicElement):
@@ -842,9 +918,8 @@ class World:
     def __init__(self, config: dict, worldDir: str):
         self.id = config['mapID']
         self.name = config['mapName']
-        self.width = config['size'][0]
-        self.height = config['size'][1]
-        self.startPos = (config['startPos'][0], config['startPos'][1])
+        self.width, self.height = config['size']
+        self.startPos = config['startPos']
         self.dir = worldDir
         self.currRegion = Region()
 
@@ -1275,7 +1350,8 @@ window.bind('<Escape>', Debug)
 #Tests
 player = Player(3* size, 3* size)
 Chest("chest", 5 * size, 3 * size)
-dialog = Dialog("oldman")
-dialog.show(0)
+#dialog = Dialog("oldman")
+#dialog.show(0)
 
+npc = Jhony("test", 5*size, 10*size, 0)
 window.mainloop()
