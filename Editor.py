@@ -10,6 +10,8 @@ import traceback
 import random
 
 from math import * 
+import fractions
+
 import sys
 
 import cProfile
@@ -38,7 +40,8 @@ DOWN = "Down"
 LEFT = "Left"
 RIGHT = "Right"
 
-globalTimerStop = False
+dialogTimeStop = False
+pauseTimeStop = False
 
 #Chemins de dossier
 tilesFolder = "./data/tiles/"
@@ -155,7 +158,6 @@ class Res_Map:
         self.name = config['mapName']
         self.size = config['size'].lower()
         self.directory = directory
-
         
 class Res_Dialog:
     def __init__(self, id, name, texts, dialogs):
@@ -172,7 +174,6 @@ class Res_Dialog:
 
     def getLen(self, index):
         return len(self.dialogs[index])
-
 
 class BasicElement:
     def __init__(self, id, resType: str, tileCoord: bool ,x: float, y: float, fix: bool, rotation = 0, tags = ""):
@@ -251,14 +252,96 @@ class BasicElement:
             return True
         else:
             return False
+
+class Tile(BasicElement):
+    def __init__(self, id, x: int, y: int, rotation: int = 0):
+        super().__init__(id, TILE, True, x, y, False, rotation)
+
+    def changeTile(self, id):
+        self.__init__(id, self.x, self.y)
+
+    def cleanUp(self):
+        super().cleanUp()
+        #currWorld.currRegion.tiles.remove(self)
     
+class TkinterFix:
+    #Tkinter a une manière spéciale de déterminer qu'est ce qui a changé sur l'écran qui permet de sauver des performances,
+    #Cette classe permet de forcer l'affichage des entités qui bougent sans qu'il y ait des bugs d'affichage
+    def __init__(self, x, y, entity, size=10):
+        x0, y0, x1, y1 = canvas.bbox(entity.obj)
+
+        if showFixBbox:
+            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="")
+        else:
+            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="", outline="")
+
+    def move(self, dx, dy):
+        canvas.move(self.obj, dx, dy)
+
+    def cleanUp(self):
+        canvas.delete(self.obj)
+
+class Dialog:
+    def __init__(self, id):
+        
+        self.res = getRes(DIALOG, id)
+        temp = Image.open(dialogsFolder + "dialog_frame.png")
+        width, height = temp.size
+        self.img = ImageTk.PhotoImage(temp.resize((int(width * size/32), int(height * size/32)), Image.BOX))
+        #self.obj = None
+        self.label = None
+        self.font = Font(family="Times New Roman", size=24)
+        self.i = 0
+        self.dialIndex = 0
+        
+        self.funcID = None
+        self.end = False
+
+    def cleanUp(self):
+        global dialogTimeStop
+
+        self.end = False
+        self.reset()
+        dialogTimeStop = False
+
+    def reset(self):
+        self.i = 0 
+        if self.funcID != None:
+            window.unbind("<KeyPress-f>", self.funcID)
+            self.funcID = None
+
+        if self.label != None:
+            self.label.destroy()
+
+
+    def next(self):
+        if not self.end:
+            self.i += 1
+            if self.i < self.res.getLen(self.dialIndex):
+                self.label.config(text=self.res.getDialog(self.dialIndex, self.i))
+            else:
+                self.end = True
+                self.reset()
+
+    def show(self, index):
+        global dialogTimeStop
+
+        self.end = False
+        dialogTimeStop = True
+        
+        
+        self.funcID = window.bind("<KeyPress-f>", lambda event: self.next())
+        self.dialIndex = index
+        self.label = Label(window, font=self.font, text=self.res.getDialog(index, self.i), image=self.img,borderwidth=0,compound=CENTER, relief=FLAT)
+        self.label.place(x=caseX * size/2 + margin - 4.5*size, y=3*HEIGHT/4 - size)
+
 class Entity(BasicElement):
     def __init__(self, id, x: float, y: float, rotation=0, tags=""):
         #if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
         #    raise Exception(x + " " + y + " Isn't a valid position for an Entity")
         #    breakpoint()
 
-        super().__init__(id, ENTITY, False, x, y, True, rotation, tags)
+        super().__init__(id, ENTITY, False, x, y, True, rotation, " entity " + tags)
 
         self.side = self.res.side
         self.health = self.res.health
@@ -364,7 +447,7 @@ class Entity(BasicElement):
     
     def outerLoop(self):
         self._pendingLoop = window.after(tick, self.outerLoop)
-        if not globalTimerStop:
+        if not dialogTimeStop:
             self.loop()
         else:
             self.timeStopLoop()
@@ -380,23 +463,6 @@ class Entity(BasicElement):
             return True
         else:
             return False
-
-class TkinterFix:
-    #Tkinter a une manière spéciale de déterminer qu'est ce qui a changé sur l'écran qui permet de sauver des performances,
-    #Cette classe permet de forcer l'affichage des entités qui bougent sans qu'il y ait des bugs d'affichage
-    def __init__(self, x, y, entity, size=10):
-        x0, y0, x1, y1 = canvas.bbox(entity.obj)
-
-        if showFixBbox:
-            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="")
-        else:
-            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="", outline="")
-
-    def move(self, dx, dy):
-        canvas.move(self.obj, dx, dy)
-
-    def cleanUp(self):
-        canvas.delete(self.obj)
 
 class Mob(Entity):
     def __init__(self, id, x, y, rotation=0, tags=""):
@@ -657,7 +723,7 @@ class Projectile(Entity):
         super().loop()
         canvas.update()
 
-class NPC(Mob):
+class Npc(Mob):
     def __init__(self, id, x, y, dialogID):
         super().__init__(id, x, y, tags="usable")
         self.dialogID = dialogID
@@ -675,63 +741,9 @@ class NPC(Mob):
         pass
 
     def OnUse(self, entity):
-        self.dialog.show(self.index)
+        pass
 
-class Dialog:
-    def __init__(self, id):
-        
-        self.res = getRes(DIALOG, id)
-        temp = Image.open(dialogsFolder + "dialog_frame.png")
-        width, height = temp.size
-        self.img = ImageTk.PhotoImage(temp.resize((int(width * size/32), int(height * size/32)), Image.BOX))
-        #self.obj = None
-        self.label = None
-        self.font = Font(family="Times New Roman", size=24)
-        self.i = 0
-        self.dialIndex = 0
-        
-        self.funcID = None
-        self.end = False
-
-    def cleanUp(self):
-        global globalTimerStop
-
-        self.end = False
-        self.reset()
-        globalTimerStop = False
-
-    def reset(self):
-        self.i = 0 
-        if self.funcID != None:
-            window.unbind("<KeyPress-f>", self.funcID)
-            self.funcID = None
-
-        if self.label != None:
-            self.label.destroy()
-
-
-    def next(self):
-        if not self.end:
-            self.i += 1
-            if self.i < self.res.getLen(self.dialIndex):
-                self.label.config(text=self.res.getDialog(self.dialIndex, self.i))
-            else:
-                self.end = True
-                self.reset()
-
-    def show(self, index):
-        global globalTimerStop
-
-        self.end = False
-        globalTimerStop = True
-        
-        
-        self.funcID = window.bind("<KeyPress-f>", lambda event: self.next())
-        self.dialIndex = index
-        self.label = Label(window, font=self.font, text=self.res.getDialog(index, self.i), image=self.img,borderwidth=0,compound=CENTER, relief=FLAT)
-        self.label.place(x=caseX * size/2 + margin - 4.5*size, y=3*HEIGHT/4 - size)
-
-class Jhony(NPC):
+class Jhony(Npc):
     def __init__(self, *args):
         super().__init__(*args)
         self.step = 0 #Avancement
@@ -740,8 +752,6 @@ class Jhony(NPC):
         self.moveTick_2 = int(2*size/self.speed)
 
     def OnUse(self, *args):
-        if self.dialog == None:
-            self.dialog = Dialog("oldman")
         if self.step == 0:
             self.dialog.show(0)
         if self.step >= 2:
@@ -767,26 +777,6 @@ class Jhony(NPC):
                     self.move(1, 0)
                 else:
                     self.step += 1
-
-
-
-                
-
-
-
-
-
-class Tile(BasicElement):
-    def __init__(self, id, x: int, y: int, rotation: int = 0):
-        super().__init__(id, TILE, True, x, y, False, rotation)
-
-    def changeTile(self, id):
-        self.__init__(id, self.x, self.y)
-
-    def cleanUp(self):
-        super().cleanUp()
-        #currWorld.currRegion.tiles.remove(self)
-    
 
 class Decor(BasicElement):
     def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = "", **kwargs):
@@ -947,6 +937,114 @@ class World:
     def saveRegion(self, name: str):
         self.currRegion.save(self.dir + name)
 
+class GUI:
+    heartFile = "./data/gui/heart.png"
+    halfHeartFile = "./data/gui/half_heart.png"
+    nothingFile = "./data/gui/blank.png"
+    coinsFile = "./data/gui/coin.png"
+    guiSize = 75
+
+    #Constants
+    F_HEART = "F_HEART"
+    H_HEART = "H_HEART"
+    NOTHING = "NOTHING"
+
+    def __init__(self):
+        self.img_heart      = getImage(GUI.heartFile, 100, photoimage=True)
+        self.img_halfHeart  = getImage(GUI.halfHeartFile, 100, photoimage=True)
+        self.img_nothing    = getImage(GUI.nothingFile, 100, photoimage=True)
+        self.img_coins      = getImage(GUI.coinsFile, 100, photoimage=True)
+
+        self.font = Font(family="Calibri", size="20")
+        
+        self.coins = canvas.create_image(margin, size*((caseY-1) - 0.5), image = self.img_coins)
+        self.coinsLabel = Label(window, text="0", font=self.font)
+        self.coinsLabel.place(x=margin + 50, y= size*((caseY-1) - 0.5))
+
+        self.hearts = []
+        self.lastHealth = 0
+        for i in range(3):
+            self.hearts.append(canvas.create_image(margin + i * 100, size*(caseY-0.5)))
+            self.changeHeart(i, GUI.F_HEART)
+        self._pendingLoop = canvas.after(tick, self.loop)
+    
+    def cleanUp(self):
+        for id in range(self.hearts):
+            canvas.delete(id)
+        canvas.after_cancel(self._pendingLoop)
+    
+    def changeHeart(self, heartID, heartType):
+        img = None
+        if heartType == GUI.F_HEART:
+            img = self.img_heart
+        elif heartType == GUI.H_HEART:
+            img = self.img_halfHeart
+        elif heartType == GUI.NOTHING:
+            img = self.img_nothing
+        
+        canvas.itemconfig(self.hearts[heartID], image=img)
+    def fillHeartsTo(self, value):
+        #value nombre entre 0 et 9 (3 états par coeurs)
+        paire = False
+        if value == 0:
+            self.changeHeart(0, GUI.NOTHING)
+        for i in range(6):
+            currHeart = floor(i/2)
+            a = value - i 
+            if paire and a > 1: 
+                self.changeHeart(currHeart, GUI.F_HEART)
+            if not paire and a == 1:
+                self.changeHeart(currHeart, GUI.H_HEART)
+                if currHeart + 1 <= 2:
+                    self.changeHeart(currHeart + 1, GUI.NOTHING)
+                    break
+            if paire:
+                paire = False
+            else:
+                paire = True                    
+    def loop(self):
+        self._pendingLoop = canvas.after(tick, self.loop)
+        try:
+            player 
+        except:
+            print("[GUI] [HealthBar] Couldn't retrieve player stats ")
+            return
+
+        self.coinsLabel.config(text=player.currency.__str__())
+
+        if self.lastHealth != player.health:
+            self.lastHealth = player.health
+            #La division n'est pas assez précise, on utilise le module fraction 
+            const = fractions.Fraction(100, 6)
+            val = player.health // const 
+            val = clamp(val, 0, 6)
+            self.fillHeartsTo(val)
+
+
+
+def getImage(path, imgSize=None, rotation=0, photoimage=False):
+    img = Image.open(path)
+    if type(imgSize) is tuple:
+        img = img.resize(imgSize, Image.BOX)
+    elif isinstance(imgSize, (int, float)):
+        img = img.resize((imgSize,imgSize), Image.BOX)
+    elif imgSize == None:
+        width, height = img.size
+        img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+    else:
+        raise Exception("getTkImage size parameter is wrong")
+    
+    if rotation != 0:
+        img = img.rotate(rotation)
+    
+    if photoimage:
+        return ImageTk.PhotoImage(img)
+    else:
+        return img
+
+def clamp(num, min_value, max_value):
+   return max(min(num, max_value), min_value)
+
 def getRotation(dirx, diry):
         rotation = 0
         if diry == 0:
@@ -1023,6 +1121,12 @@ def initRessources():
     wNames = []
     eNames = []
     dialNames = []
+    
+
+    #name
+    #path
+    #iterations folder
+    #
 
     #Tiles
     for (dirpath, dirnames, filenames) in os.walk(tilesFolder):
@@ -1112,9 +1216,7 @@ def initRessources():
                         resDialogs.append(Res_Dialog(js["id"], dial, text, js["dialogs"]))
                 else:
                     raise Exception("Json file doesn't either contain 'id' or 'dialogs' keys or an error occured while reading dialog texts")
-
-
-        
+   
 def importFile():
     #path = filedialog.askopenfilename(initialdir = saveFolder ,title = "Select Region Map ",filetypes = (("data files","*.data"),("all files","*.*")))
     #if path != "":
@@ -1190,12 +1292,11 @@ def arrowPressed(event):
 def arrowReleased(event):
     arrowsStatus[event.keysym] = False
     
-
 def OnClick(event):
 
     if event.y < 0 or event.y > size*caseY or event.x < margin or event.x > size*caseX + margin:
         return False
-
+        
     index = selector.curselection()
     name = selector.get(index)
     currRegion = currWorld.currRegion
@@ -1245,9 +1346,6 @@ def OnClick(event):
             else:
                 entity = getattr(sys.modules[__name__], res.className)(res.id, event.x - margin, event.y)
 
-            
-            
-
         elif event.num == 3:
             found = False
             items = canvas.find_overlapping(event.x, event.y, event.x, event.y)
@@ -1255,7 +1353,6 @@ def OnClick(event):
             if entity != None:
                 entity.cleanUp()
                 
-
 def switchMode(mode: str):
     global currentMode
 
@@ -1350,8 +1447,9 @@ window.bind('<Escape>', Debug)
 #Tests
 player = Player(3* size, 3* size)
 Chest("chest", 5 * size, 3 * size)
-#dialog = Dialog("oldman")
-#dialog.show(0)
 
-npc = Jhony("test", 5*size, 10*size, 0)
+gui = GUI()
+
+npc = Jhony("test", 5*size, 9*size, 0)
 window.mainloop()
+
