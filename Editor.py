@@ -92,15 +92,16 @@ class Ressource:
                 if spritesNumber > 1:
                     for i in range(spritesNumber):
                         if key == "Default":
-                            texture.append(self.__texture(path + self.name + i.__str__() + ".png"))
+                            texture.append(getImage(path + self.name + i.__str__() + ".png"))
+
                         else:
-                            texture.append(self.__texture(path + self.name + "_" + key + i.__str__() + ".png"))
+                            texture.append(getImage(path + self.name + "_" + key + i.__str__() + ".png"))
                     
                 elif spritesNumber == 1:
                     if key == "Default":
-                        texture.append(self.__texture(path + self.name + ".png"))
+                        texture.append(getImage(path + self.name + ".png"))
                     else:
-                        texture.append(self.__texture(path + self.name + "_" + key + ".png"))
+                        texture.append(getImage(path + self.name + "_" + key + ".png"))
                 
                 self.animations[key] = texture
 
@@ -108,25 +109,18 @@ class Ressource:
             spritesNumber = self.animConfig[0]
             if spritesNumber > 1:
                 for i in range(spritesNumber):
-                    texture.append(self.__texture(path + self.name + i.__str__() + ".png"))
+                    texture.append(getImage(path + self.name + i.__str__() + ".png"))
 
             elif spritesNumber == 1:
-                texture.append(self.__texture(path + self.name + ".png"))
+                texture.append(getImage(path + self.name + ".png"))
                 
             self.animConfig = {"Default": self.animConfig}
             self.animations["Default"] = texture
 
         elif self.animConfig == None:
-            texture.append(self.__texture(path + self.name + ".png"))
+            texture.append(getImage(path + self.name + ".png"))
             self.animations["Default"] = texture
-
-
-    def __texture(self, path):
-        img = Image.open(path)
-        width, height = img.size
-        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-        return img 
-
+            
     def getTexture(self, key="Default", index=0, rotation=0):
         return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
 
@@ -192,6 +186,7 @@ class BasicElement:
             tags += " collision "
 
         self.image = self.res.getTexture(rotation=rotation)
+
         if tileCoord:
             self.obj = canvas.create_image(size*(x + 0.5) + margin, size*(y + 0.5), tags=tags, image=self.image)
         else:
@@ -285,9 +280,8 @@ class Dialog:
     def __init__(self, id):
         
         self.res = getRes(DIALOG, id)
-        temp = Image.open(dialogsFolder + "dialog_frame.png")
-        width, height = temp.size
-        self.img = ImageTk.PhotoImage(temp.resize((int(width * size/32), int(height * size/32)), Image.BOX))
+        self.img = getImage(dialogsFolder + "dialog_frame.png", photoimage=True)
+
         #self.obj = None
         self.label = None
         self.font = Font(family="Times New Roman", size=24)
@@ -1030,9 +1024,9 @@ def getImage(path, imgSize=None, rotation=0, photoimage=False):
         img = img.resize((imgSize,imgSize), Image.BOX)
     elif imgSize == None:
         width, height = img.size
-        img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
     else:
-        raise Exception("getTkImage size parameter is wrong")
+        raise Exception("getImage size parameter is wrong")
     
     if rotation != 0:
         img = img.rotate(rotation)
