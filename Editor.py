@@ -77,7 +77,6 @@ canvas.pack(fill=BOTH, expand=1)
 
 class Ressource:
     def __init__(self, path: str, config: dict):
-        self.id = config["id"]
         self.name = config["name"]
         self.animSpeed = config["animSpeed"]
         self.collisions = config["physicalCollisions"]
@@ -154,8 +153,7 @@ class Res_Map:
         self.directory = directory
         
 class Res_Dialog:
-    def __init__(self, id, name, texts, dialogs):
-        self.id = id
+    def __init__(self, name, texts, dialogs):
         self.name = name
         self.texts = texts
         self.dialogs = dialogs
@@ -877,15 +875,15 @@ class Region:
         for y in range(caseY):
             for x in range(caseX):
                 tile: Tile = self.tiles[y][x]
-                tilesData[y][x] = [tile.res.id, tile.rotation]
+                tilesData[y][x] = [tile.res.name, tile.rotation]
 
         decorsData = []
         for decor in self.decors:
-            decorsData.append([decor.res.id, (decor.x, decor.y), decor.arguments])
+            decorsData.append([decor.res.name, (decor.x, decor.y), decor.arguments])
 
         entitiesData = []
         for entity in self.entities:
-            entitiesData.append([entity.res.id, (entity.x, entity.y)])
+            entitiesData.append([entity.res.name, (entity.x, entity.y)])
         
         with open(path + ".data", "w") as file:
             dic = {'tiles': tilesData, 'decor': decorsData, 'entities': entitiesData}
@@ -1098,12 +1096,13 @@ def getRes(ressource, id):
     else:
         raise Exception('Ressource type not properly defined')
         breakpoint()
+    
 
     if type(id) is int:
             return res[id]
     elif type(id) is str:
         for thing in res:
-            if thing.name == id:
+            if thing.name.lower() == id.lower():
                 return thing
 
     raise Exception("Ressource of type " + ressource + " not found" )
@@ -1167,49 +1166,36 @@ def initRessources():
                     break           
         break
 
-    for id in range(len(tile_configs)):
-        for config in tile_configs:
-            with open(tilesFolder + config) as file:
-                js = json.load(file)
-                if js['id'] == id:
-                    resTiles.append(Res_Tile(tilesFolder,js))
-                    break
+    for config in tile_configs:
+        with open(tilesFolder + config) as file:
+            js = json.load(file)
+            if "name" in js:
+                resTiles.append(Res_Tile(tilesFolder,js))
+                
     
-    for id in range(len(decor_configs)):
-        for config in decor_configs:
-            with open(decorsFolder + config) as file:
-                js = json.load(file)
-                if js['id'] == id:
-                    resDecors.append(Res_Decor(decorsFolder,js))
-                    break
+    for config in decor_configs:
+        with open(decorsFolder + config) as file:
+            js = json.load(file)
+            if "name" in js:
+                resDecors.append(Res_Decor(decorsFolder,js))
+                
     
-    #Non utilisé
-    #for id in range(len(worlds)):
-    #    for world in wNames:
-    #        with open(mapsFolder + world + "config.json") as file:
-    #            js = json.load(file)
-    #            if js['mapID'] == id:
-    #                worlds.append(World(js, mapsFolder + world))
-    #                break
+    for entity in eNames:
+        with open(entitiesFolder + entity + "config.json") as file:
+            js = json.load(file)
+            if "name" in js:
+                resEntities.append(Res_Entity(entitiesFolder + entity, js))
+                
 
-    for id in range(len(eNames)):
-        for entity in eNames:
-            with open(entitiesFolder + entity + "config.json") as file:
-                js = json.load(file)
-                if js['id'] == id:
-                    resEntities.append(Res_Entity(entitiesFolder + entity, js))
-                    break
-
-    for id in range(len(dialNames)):
-        for dial in dialNames:
-            with open(dialogsFolder + dial + ".json") as jsonFile:
-                js = json.load(jsonFile)
-                if "id" in js and "dialogs" in js and js["id"] == id:
-                    with open(dialogsFolder + dial + ".txt") as dialogFile:
-                        text = dialogFile.readlines()
-                        resDialogs.append(Res_Dialog(js["id"], dial, text, js["dialogs"]))
-                else:
-                    raise Exception("Json file doesn't either contain 'id' or 'dialogs' keys or an error occured while reading dialog texts")
+    for dial in dialNames:
+        with open(dialogsFolder + dial + ".json") as jsonFile:
+            js = json.load(jsonFile)
+            if "dialogs" in js:
+                with open(dialogsFolder + dial + ".txt") as dialogFile:
+                    text = dialogFile.readlines()
+                    resDialogs.append(Res_Dialog(dial, text, js["dialogs"]))
+            else:
+                raise Exception("Json file doesn't either contain 'id' or 'dialogs' keys or an error occured while reading dialog texts")
    
 def importFile():
     #path = filedialog.askopenfilename(initialdir = saveFolder ,title = "Select Region Map ",filetypes = (("data files","*.data"),("all files","*.*")))
@@ -1338,7 +1324,7 @@ def OnClick(event):
             if res.name == "player":
                 entity = getattr(sys.modules[__name__], res.className)(event.x - margin, event.y)
             else:
-                entity = getattr(sys.modules[__name__], res.className)(res.id, event.x - margin, event.y)
+                entity = getattr(sys.modules[__name__], res.className)(res.name, event.x - margin, event.y)
 
         elif event.num == 3:
             found = False
@@ -1439,11 +1425,14 @@ canvas.bind('<Button>', OnClick)
 window.bind('<Escape>', Debug)
 
 #Tests
-player = Player(3* size, 3* size)
-Chest("chest", 5 * size, 3 * size)
+Test = False
+if Test:
+    player = Player(3* size, 3* size)
+    Chest("chest", 5 * size, 3 * size)
 
-gui = GUI()
+    gui = GUI()
 
-npc = Jhony("test", 5*size, 9*size, 0)
+    npc = Jhony("test", 5*size, 9*size, 0)
+
 window.mainloop()
 
