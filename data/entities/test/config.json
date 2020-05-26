@@ -1,7 +1,7 @@
 {
     "id": 1,
     "name": "test",
-    "class": "MeleeEnemy",
+    "class": "RangedEnemy",
     "type": "Mob",
     "side": "Hostile",
     "health": 100,

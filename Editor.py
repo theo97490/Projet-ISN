@@ -502,6 +502,31 @@ class Mob(Entity):
                     print("[DAMAGE] current health : "+ self.health.__str__())
                     self.invicibility = True
 
+
+    def RandomMove(self, value):
+        Rand = random.randint(0,4)
+        if (Rand == 0) :
+             self.direction = (1, 0)
+        elif (Rand == 1) :
+            self.direction = (-1, 0)
+        elif (Rand == 2) :
+            self.direction = (0, 1)
+        else :
+            self.direction = (0, -1)
+
+    def FacePlayer(self):
+        distanceX = self.x-player.x
+        distanceY = self.y-player.y
+        if (abs(distanceY) > abs(distanceX)):
+            if (distanceY > 0):
+                self.facingDirection = UP
+            else :
+                self.facingDirection = DOWN
+        else :
+            if (distanceX > 0):
+                self.facingDirection = LEFT
+            else :
+                self.facingDirection = RIGHT
                             
     def loop(self):
         self.checkGround()
@@ -551,17 +576,84 @@ class MeleeEnemy(Mob):
         super().loop()
 
         
+class RangedEnemy(Mob):
+    def __init__(self, id, x, y, rotation=0):
+        super().__init__(id, x, y, rotation)
+        self.timer = 0
+        self.stopTimer = False
+        self.timer2 = 0
+        self.step = 0
+        self.direction = (0, 0)
+        self._timerShootArrow = 0
     
-    def RandomMove(self, value):
-            Rand = random.randint(0,4)
-            if (Rand == 0) :
-                self.direction = (1, 0)
-            elif (Rand == 1) :
-                self.direction = (-1, 0)
-            elif (Rand == 2) :
-                self.direction = (0, 1)
+    
+    def shootArrow(self):
+
+            dirx = diry = dx = dy = 0
+            if self.facingDirection == UP:
+                diry = 1
+                dy = -size
+            elif self.facingDirection == DOWN:
+                diry = -1
+                dy = size
+            elif self.facingDirection == RIGHT:
+                dirx = 1
+                dx = size
+            elif self.facingDirection == LEFT:
+                dx = -size
+                dirx = -1
+
+            Projectile("arrow", self.x + dx, self.y + dy, dirx, diry, getRotation(dirx, diry))
+            self.action = None
+
+
+    def loop(self):
+        #Deplacement        
+
+        distanceX = self.x-player.x
+        distanceY = self.y-player.y
+        
+        if (self.getDistance(player) < 500):
+            if (-10 < distanceX < 10 or -10 < distanceY < 10  ):
+                if(self._timerShootArrow == 60):
+                    self.FacePlayer()
+                    self.shootArrow()
+                    self._timerShootArrow = 0
+                else : 
+                    self._timerShootArrow += 1 
             else :
-                self.direction = (0, -1)
+                if (abs(distanceY) < abs(distanceX)):
+                    self.moveTowards(self.x, player.y)
+                else :
+                    self.moveTowards(player.x, self.y)
+        elif (self.getDistance(player) < 1000):
+            self.moveTowards(player.x, player.y)
+            
+        else:
+            if (self.timer >= 60) :
+                self.timer = 0
+                self.stopTimer = True
+
+                if (random.randint(0,1) <= 0.2):
+                    if (random.randint(0,1) <= 0.75):
+                        self.step = 50
+                    else:
+                        self.step = 100    
+                    self.RandomMove(self.step)
+                    
+                    self.timer2 = self.step/self.speed
+            
+            if self.timer2 != 0:
+                self.move(*self.direction)
+                self.timer2 -= 1
+            else:
+                self.direction = (0,0)
+                self.stopTimer = False
+
+            if not self.stopTimer:
+                self.timer += 1
+            
+        super().loop()
         
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
@@ -618,8 +710,8 @@ class Player(Mob):
             window.after_cancel(self._pendingMelee)
             self._pendingMelee = None
             self.action = None
-        
-
+    
+    
     def shootArrow(self):
         if self.timer > self._timerShootArrow + 20:
             self._timerShootArrow = self.timer
@@ -640,6 +732,7 @@ class Player(Mob):
 
             Projectile("arrow", self.x + dx, self.y + dy, dirx, diry, getRotation(dirx, diry))
             self.action = None
+
 
     def use(self):
         x0, y0, x1, y1 = canvas.bbox(self.obj)
