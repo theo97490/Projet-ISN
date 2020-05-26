@@ -296,37 +296,6 @@ class Dialog:
         self.reset()
         dialogTimeStop = False
 
-    def reset(self):
-        self.i = 0 
-        if self.funcID != None:
-            window.unbind("<KeyPress-f>", self.funcID)
-            self.funcID = None
-
-        if self.label != None:
-            self.label.destroy()
-
-
-    def next(self):
-        if not self.end:
-            self.i += 1
-            if self.i < self.res.getLen(self.dialIndex):
-                self.label.config(text=self.res.getDialog(self.dialIndex, self.i))
-            else:
-                self.end = True
-                self.reset()
-
-    def show(self, index):
-        global dialogTimeStop
-
-        self.end = False
-        dialogTimeStop = True
-        
-        
-        self.funcID = window.bind("<KeyPress-f>", lambda event: self.next())
-        self.dialIndex = index
-        self.label = Label(window, font=self.font, text=self.res.getDialog(index, self.i), image=self.img,borderwidth=0,compound=CENTER, relief=FLAT)
-        self.label.place(x=caseX * size/2 + margin - 4.5*size, y=3*HEIGHT/4 - size)
-
 class Entity(BasicElement):
     def __init__(self, id, x: float, y: float, rotation=0, tags=""):
         #if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
@@ -359,41 +328,6 @@ class Entity(BasicElement):
             window.after_cancel(self._pendingLoop)
             self._pendingLoop = None
         currWorld.currRegion.entities.remove(self)
-
-
-    def move(self, dirx, diry):
-        #dirx et diry sont des directions égales à 1 ou -1
-
-        diry = -diry
-        dx =  dirx * self.speed
-        dy =  diry * self.speed
-        
-        while(self.checkCollisions(dx, 0)):
-            dx -= dirx * 1/self.speed
-        
-        while(self.checkCollisions(0, dy)):
-            dy -= diry * 1/self.speed
-
-        if self.x + dx > size * caseX or self.x + dx < 0:
-            dx = 0
-            self.OnBorderTouch()
-
-        if self.y + dy > size * caseY or self.y + dy < 0:
-            dy = 0
-            self.OnBorderTouch()
-        
-        self.x += dx
-        self.y += dy
-
-        canvas.move(self.obj, dx ,dy)
-        self.tkinterFix.move(dx, dy)
-    
-    def moveTowards(self, x, y):
-        norme = self.getDistance(x,y)
-        x = x - self.x
-        y = y - self.y
-        y = -y
-        self.move(x / norme, y / norme)
     
     def animate(self):
         if self.currAnim != self.lastAnim:
@@ -403,16 +337,6 @@ class Entity(BasicElement):
 
         super().animate()
         return True
-
-    def checkCollisions(self, dx, dy):
-        x1, y1, x2, y2 = canvas.bbox(self.obj)
-        items = canvas.find_overlapping(x1 + dx, y1 + dy, x2 + dx, y2 + dy)
-        for item in items:
-            tags = canvas.gettags(item)
-            if "collision" in tags:
-                self.OnCollision()
-                return True
-        return False 
     
     def getDistance(self, *args):
         #Recupère la distance entre self et une entité si un argument donné,
@@ -438,11 +362,12 @@ class Entity(BasicElement):
         pass
     
     def outerLoop(self):
-        self._pendingLoop = window.after(tick, self.outerLoop)
-        if not dialogTimeStop:
-            self.loop()
-        else:
-            self.timeStopLoop()
+        pass
+    #    self._pendingLoop = window.after(tick, self.outerLoop)
+    #    if not dialogTimeStop:
+    #        self.loop()
+    #    else:
+    #        self.timeStopLoop()
         
     def timeStopLoop(self):
         pass 
@@ -459,79 +384,7 @@ class Entity(BasicElement):
 class Mob(Entity):
     def __init__(self, id, x, y, rotation=0, tags=""):
         super().__init__(id, x, y, rotation=rotation, tags=tags)
-
-        
-        self.facingDirection = None 
-
-    def move(self, dirx, diry):
-        if dirx > 0:
-            self.currAnim = self.facingDirection = RIGHT
-        elif dirx < 0:
-            self.currAnim = self.facingDirection = LEFT
-        elif diry > 0:
-            self.currAnim = self.facingDirection = UP
-        elif diry < 0:
-            self.currAnim = self.facingDirection = DOWN
-        else:
-            self.currAnim = "Default"
-
-        super().move(dirx, diry)
-
-    def checkGround(self):
-        items = canvas.find_overlapping(*canvas.bbox(self.obj))
-        walkable = findObjectByTag(DECOR, items, "walk", first=True)
-        if walkable != None:
-            walkable.OnWalk(self)
-            return True
-        return False
-
-    def checkCollisionDamage(self):
-        if self.invicibility:
-            self.invCounter += 1
-            if self.invCounter == self.invTick:
-                self.invCounter = 0
-                self.invicibility = False
-        else:
-            items = canvas.find_overlapping(*canvas.bbox(self.obj))
-
-            for entity in findObjectByTag(ENTITY, items, "entity"):
-                if entity.side != self.side:
-                    entity.OnHit()
-                    print( "[COLLISION] " + self.res.name + " collided with " + entity.res.name)
-                    self.health -= entity.contactDamage
-                    print("[DAMAGE] current health : "+ self.health.__str__())
-                    self.invicibility = True
-
-
-    def RandomMove(self, value):
-        Rand = random.randint(0,4)
-        if (Rand == 0) :
-             self.direction = (1, 0)
-        elif (Rand == 1) :
-            self.direction = (-1, 0)
-        elif (Rand == 2) :
-            self.direction = (0, 1)
-        else :
-            self.direction = (0, -1)
-
-    def FacePlayer(self):
-        distanceX = self.x-player.x
-        distanceY = self.y-player.y
-        if (abs(distanceY) > abs(distanceX)):
-            if (distanceY > 0):
-                self.facingDirection = UP
-            else :
-                self.facingDirection = DOWN
-        else :
-            if (distanceX > 0):
-                self.facingDirection = LEFT
-            else :
-                self.facingDirection = RIGHT
-                            
-    def loop(self):
-        self.checkGround()
-        super().loop()
-        self.checkCollisionDamage()    
+        self.facingDirection = None  
 
 class MeleeEnemy(Mob):
     def __init__(self, id, x, y, rotation=0):
@@ -541,40 +394,6 @@ class MeleeEnemy(Mob):
         self.timer2 = 0
         self.step = 0
         self.direction = (0, 0)
-
-
-    def loop(self):
-        #Deplacement        
-
-        if (self.getDistance(player) < 250):
-            self.moveTowards(player.x, player.y)
-            
-        else:
-            if (self.timer >= 60) :
-                self.timer = 0
-                self.stopTimer = True
-
-                if (random.randint(0,1) <= 0.2):
-                    if (random.randint(0,1) <= 0.75):
-                        self.step = 50
-                    else:
-                        self.step = 100    
-                    self.RandomMove(self.step)
-                    
-                    self.timer2 = self.step/self.speed
-            
-            if self.timer2 != 0:
-                self.move(*self.direction)
-                self.timer2 -= 1
-            else:
-                self.direction = (0,0)
-                self.stopTimer = False
-
-            if not self.stopTimer:
-                self.timer += 1
-            
-        super().loop()
-
         
 class RangedEnemy(Mob):
     def __init__(self, id, x, y, rotation=0):
@@ -585,75 +404,6 @@ class RangedEnemy(Mob):
         self.step = 0
         self.direction = (0, 0)
         self._timerShootArrow = 0
-    
-    
-    def shootArrow(self):
-
-            dirx = diry = dx = dy = 0
-            if self.facingDirection == UP:
-                diry = 1
-                dy = -size
-            elif self.facingDirection == DOWN:
-                diry = -1
-                dy = size
-            elif self.facingDirection == RIGHT:
-                dirx = 1
-                dx = size
-            elif self.facingDirection == LEFT:
-                dx = -size
-                dirx = -1
-
-            Projectile("arrow", self.x + dx, self.y + dy, dirx, diry, getRotation(dirx, diry))
-            self.action = None
-
-
-    def loop(self):
-        #Deplacement        
-
-        distanceX = self.x-player.x
-        distanceY = self.y-player.y
-        
-        if (self.getDistance(player) < 500):
-            if (-10 < distanceX < 10 or -10 < distanceY < 10  ):
-                if(self._timerShootArrow == 60):
-                    self.FacePlayer()
-                    self.shootArrow()
-                    self._timerShootArrow = 0
-                else : 
-                    self._timerShootArrow += 1 
-            else :
-                if (abs(distanceY) < abs(distanceX)):
-                    self.moveTowards(self.x, player.y)
-                else :
-                    self.moveTowards(player.x, self.y)
-        elif (self.getDistance(player) < 1000):
-            self.moveTowards(player.x, player.y)
-            
-        else:
-            if (self.timer >= 60) :
-                self.timer = 0
-                self.stopTimer = True
-
-                if (random.randint(0,1) <= 0.2):
-                    if (random.randint(0,1) <= 0.75):
-                        self.step = 50
-                    else:
-                        self.step = 100    
-                    self.RandomMove(self.step)
-                    
-                    self.timer2 = self.step/self.speed
-            
-            if self.timer2 != 0:
-                self.move(*self.direction)
-                self.timer2 -= 1
-            else:
-                self.direction = (0,0)
-                self.stopTimer = False
-
-            if not self.stopTimer:
-                self.timer += 1
-            
-        super().loop()
         
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
@@ -676,137 +426,14 @@ class Player(Mob):
 
         self._timerShootArrow = 0
 
-        window.bind("<KeyPress-a>", lambda event: self.setAction("Melee"))
-        window.bind("<KeyPress-e>", lambda event: self.setAction("Use"))
-        window.bind("<KeyPress-z>", lambda event: self.setAction("Shoot"))
-
-    
-    def meleeAttack(self):
-        self._pendingMelee = window.after(tick, self.meleeAttack)
-        self.action = "Pending"
-
-        if self.sword == None:
-            dx = dy = rotation = 0 
-            
-            if self.facingDirection == RIGHT:
-                rotation = -90
-                dx = size
-
-            elif self.facingDirection == LEFT:
-                rotation = 90
-                dx = -size
-
-            elif self.facingDirection == DOWN:
-                rotation = 180
-                dy = size
-
-            elif self.facingDirection == UP:
-                dy = -size
-
-            self.sword = Skill("player_sword", self.x + dx, self.y + dy, rotation)
-        
-        elif self.sword.animStatus == END:
-            self.sword = None
-            window.after_cancel(self._pendingMelee)
-            self._pendingMelee = None
-            self.action = None
-    
-    
-    def shootArrow(self):
-        if self.timer > self._timerShootArrow + 20:
-            self._timerShootArrow = self.timer
-
-            dirx = diry = dx = dy = 0
-            if self.facingDirection == UP:
-                diry = 1
-                dy = -size
-            elif self.facingDirection == DOWN:
-                diry = -1
-                dy = size
-            elif self.facingDirection == RIGHT:
-                dirx = 1
-                dx = size
-            elif self.facingDirection == LEFT:
-                dx = -size
-                dirx = -1
-
-            Projectile("arrow", self.x + dx, self.y + dy, dirx, diry, getRotation(dirx, diry))
-            self.action = None
-
-
-    def use(self):
-        x0, y0, x1, y1 = canvas.bbox(self.obj)
-
-        if self.facingDirection == UP:
-            y1 = y0 - size/2
-        elif self.facingDirection == DOWN:
-            y0 = y1 + size/2
-        elif self.facingDirection == LEFT:
-            x1 = x0 - size/2
-        elif self.facingDirection == RIGHT:
-            x0 = x1 + size/2
-
-        items = canvas.find_overlapping(x0, y0, x1, y1)
-        usable = findObjectByTag(DECOR, items, "usable", first=True)
-        if usable != None:
-            usable.OnUse(self)
-        else:
-            usable = findObjectByTag(ENTITY, items, "usable", first=True)
-            if usable != None:
-                usable.OnUse(self)
-        
-        self.action = None
-
-
-    def setAction(self, action: str):
-        print(action)
-        if self.action == None:
-            self.action = action
-
-    def loop(self):
-        dirx = diry = 0
-        
-        if self.action == None:
-            if arrowsStatus[UP]: diry += 1
-            if arrowsStatus[DOWN]: diry -= 1
-            if arrowsStatus[LEFT]: dirx -= 1
-            if arrowsStatus[RIGHT]: dirx += 1
-            self.move(dirx, diry)
-
-        elif self.action != "Pending":
-            if self.action == "Melee": self.meleeAttack()
-            if self.action == "Use": self.use()
-            if self.action == "Shoot": self.shootArrow()
-            
-        super().loop()
-        self.timer += 1
-
-    def timeStopLoop(self):
-        self.action = None
+        #window.bind("<KeyPress-a>", lambda event: self.setAction("Melee"))
+        #window.bind("<KeyPress-e>", lambda event: self.setAction("Use"))
+        #window.bind("<KeyPress-z>", lambda event: self.setAction("Shoot"))
 
 class Projectile(Entity):
     def __init__(self, id, x, y, dirx, diry, rotation=0):
         super().__init__(id, x, y, rotation=rotation)
         self.initDir = (dirx, diry)
-    
-    def OnHit(self):
-        self.cleanUp()
-
-    def OnBorderTouch(self):
-        self.cleanUp()
-
-    def OnCollision(self):
-        self.cleanUp()
-
-    def move(self, dirx, diry):
-        self.rotation = getRotation(dirx, diry)
-        super().move(dirx, diry)
-
-    def loop(self):
-        self.move(*self.initDir)
-        #self.moveTowards(player.x, player.y)
-        super().loop()
-        canvas.update()
 
 class Npc(Mob):
     def __init__(self, id, x, y, dialogID):
@@ -815,19 +442,6 @@ class Npc(Mob):
         self.dialog = Dialog(self.dialogID)
         self.index = 0
 
-
-    def cleanUp(self):
-        super().cleanUp()
-        self.dialog.cleanUp()
-
-    def timeStopLoop(self):
-        #Utilisez cette loop pour animer le npc lorsque
-        #le temps est arrété
-        pass
-
-    def OnUse(self, entity):
-        pass
-
 class Jhony(Npc):
     def __init__(self, *args):
         super().__init__(*args)
@@ -835,33 +449,6 @@ class Jhony(Npc):
 
         self.moveTick_1 = int(3*size/self.speed)
         self.moveTick_2 = int(2*size/self.speed)
-
-    def OnUse(self, *args):
-        if self.step == 0:
-            self.dialog.show(0)
-        if self.step >= 2:
-            self.dialog.show(1)
-
-
-    def timeStopLoop(self):
-        if self.dialog.end:
-            if self.step == 2:
-                self.dialog.cleanUp()
-
-            if self.step == 1:
-                self.dialog.show(1)
-                self.step += 1
-
-            if self.step == 0:
-                if self.moveTick_1 > 1:
-                    self.moveTick_1 -= 1
-                    self.move(0, 1)
-
-                elif self.moveTick_2 > 1:
-                    self.moveTick_2 -= 1
-                    self.move(1, 0)
-                else:
-                    self.step += 1
 
 class Decor(BasicElement):
     def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = "", **kwargs):
@@ -890,11 +477,6 @@ class Chest(Decor):
     def __init__(self, *args):
         super().__init__(*args, tags="usable")
         
-    def OnUse(self, player: Player):
-        self.nextSprite()
-        player.currency += 20
-        print("[CHEST] Player current currency : " + player.currency.__str__())
-
 class Teleporter(Decor):
     parameters = {"dx": "Int", "dy": "Int"}
 
@@ -902,10 +484,6 @@ class Teleporter(Decor):
         super().__init__(*args, tags="walk")
         self.dir = (kw["dx"], kw["dy"])
         self.arguments = kw
-
-    def OnWalk(self, entity):
-        if type(entity) is Player:
-            currWorld.loadRegion(*self.dir)
 
 class Region:
     def __init__(self):
@@ -1020,91 +598,6 @@ class World:
 
     def saveRegion(self, name: str):
         self.currRegion.save(self.dir + name)
-
-class GUI:
-    heartFile = "./data/gui/heart.png"
-    halfHeartFile = "./data/gui/half_heart.png"
-    nothingFile = "./data/gui/blank.png"
-    coinsFile = "./data/gui/coin.png"
-    guiSize = 75
-
-    #Constants
-    F_HEART = "F_HEART"
-    H_HEART = "H_HEART"
-    NOTHING = "NOTHING"
-
-    def __init__(self):
-        self.img_heart      = getImage(GUI.heartFile, 100, photoimage=True)
-        self.img_halfHeart  = getImage(GUI.halfHeartFile, 100, photoimage=True)
-        self.img_nothing    = getImage(GUI.nothingFile, 100, photoimage=True)
-        self.img_coins      = getImage(GUI.coinsFile, 100, photoimage=True)
-
-        self.font = Font(family="Calibri", size="20")
-        
-        self.coins = canvas.create_image(margin, size*((caseY-1) - 0.5), image = self.img_coins)
-        self.coinsLabel = Label(window, text="0", font=self.font)
-        self.coinsLabel.place(x=margin + 50, y= size*((caseY-1) - 0.5))
-
-        self.hearts = []
-        self.lastHealth = 0
-        for i in range(3):
-            self.hearts.append(canvas.create_image(margin + i * 100, size*(caseY-0.5)))
-            self.changeHeart(i, GUI.F_HEART)
-        self._pendingLoop = canvas.after(tick, self.loop)
-    
-    def cleanUp(self):
-        for id in range(self.hearts):
-            canvas.delete(id)
-        canvas.after_cancel(self._pendingLoop)
-    
-    def changeHeart(self, heartID, heartType):
-        img = None
-        if heartType == GUI.F_HEART:
-            img = self.img_heart
-        elif heartType == GUI.H_HEART:
-            img = self.img_halfHeart
-        elif heartType == GUI.NOTHING:
-            img = self.img_nothing
-        
-        canvas.itemconfig(self.hearts[heartID], image=img)
-    def fillHeartsTo(self, value):
-        #value nombre entre 0 et 9 (3 états par coeurs)
-        paire = False
-        if value == 0:
-            self.changeHeart(0, GUI.NOTHING)
-        for i in range(6):
-            currHeart = floor(i/2)
-            a = value - i 
-            if paire and a > 1: 
-                self.changeHeart(currHeart, GUI.F_HEART)
-            if not paire and a == 1:
-                self.changeHeart(currHeart, GUI.H_HEART)
-                if currHeart + 1 <= 2:
-                    self.changeHeart(currHeart + 1, GUI.NOTHING)
-                    break
-            if paire:
-                paire = False
-            else:
-                paire = True                    
-    def loop(self):
-        self._pendingLoop = canvas.after(tick, self.loop)
-        try:
-            player 
-        except:
-            print("[GUI] [HealthBar] Couldn't retrieve player stats ")
-            return
-
-        self.coinsLabel.config(text=player.currency.__str__())
-
-        if self.lastHealth != player.health:
-            self.lastHealth = player.health
-            #La division n'est pas assez précise, on utilise le module fraction 
-            const = fractions.Fraction(100, 6)
-            val = player.health // const 
-            val = clamp(val, 0, 6)
-            self.fillHeartsTo(val)
-
-
 
 def getImage(path, imgSize=None, rotation=0, photoimage=False):
     img = Image.open(path)
@@ -1518,14 +1011,7 @@ canvas.bind('<Button>', OnClick)
 window.bind('<Escape>', Debug)
 
 #Tests
-Test = False
-if Test:
-    player = Player(3* size, 3* size)
-    Chest("chest", 5 * size, 3 * size)
-
-    gui = GUI()
-
-    npc = Jhony("test", 5*size, 9*size, 0)
-
+Test = True
 window.mainloop()
+
 
