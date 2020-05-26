@@ -1,0 +1,7 @@
+{
+    "name" : "jar",
+    "class": "Decor",
+    "physicalCollisions" : false,
+    "animSpeed" : 0,
+    "animations": null
+}

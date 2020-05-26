@@ -1228,12 +1228,13 @@ def askWorldFolder():
             if result:
                 with open(path + "config.json", "w") as file:
                     file.write(
-                        '{\n'
-                            '   "mapID": 0,\n'
-                            '   "mapName" : "Name",\n'
-                            '   "size" : [5,5],\n'
+                            ('{\n'
+                            '   "name" : "Name",\n'
+                            '   "worldCoords" : [5,5],\n'
+                            '   "size": [5,5],\n'
                             '   "startPos": [0,0]\n'
-                        '}')
+                            '}'))
+                    
                     os.startfile(path + "config.json")
 
 def shutdown():

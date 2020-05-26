@@ -1,0 +1,10 @@
+{
+    "name" : "",
+    "position" : [0.0,0.0],
+    "equipment":{
+        "Sword": true,
+        "Shield": false,
+        "Bow": true,
+    }
+
+}
