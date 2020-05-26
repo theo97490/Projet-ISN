@@ -991,8 +991,7 @@ class Region:
 
 class World:
     def __init__(self, config: dict, worldDir: str):
-        self.id = config['mapID']
-        self.name = config['mapName']
+        self.name = config['name']
         self.width, self.height = config['size']
         self.startPos = config['startPos']
         self.dir = worldDir
