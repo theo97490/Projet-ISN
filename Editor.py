@@ -293,7 +293,7 @@ class Dialog:
         global dialogTimeStop
 
         self.end = False
-        self.reset()
+        #self.reset()
         dialogTimeStop = False
 
 class Entity(BasicElement):
@@ -988,9 +988,9 @@ for i in range(len(resTiles)):
 selector.select_set(0)
 selector.place(x=50,y=100)
 
-tile_button = Button(window, text="Tile", command=lambda: switchMode(TILE))
-decor_button = Button(window, text="Decor", command=lambda: switchMode(DECOR))
-entity_button = Button(window, text="Entity", command=lambda: switchMode(ENTITY))
+tile_button     = Button(window, text="Tile", command=lambda: switchMode(TILE))
+decor_button    = Button(window, text="Decor", command=lambda: switchMode(DECOR))
+entity_button   = Button(window, text="Entity", command=lambda: switchMode(ENTITY))
 
 tile_button.place(x=50, y=75)
 window.update()
