@@ -380,11 +380,6 @@ class Decor(BasicElement):
         super().cleanUp()
         currWorld.currRegion.decors.remove(self)
 
-    def OnUse(self):
-        pass
-
-    def OnWalk(self):
-        pass
       
 class Teleporter(Decor):
     parameters = {"dx": "Int", "dy": "Int"}
