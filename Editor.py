@@ -303,30 +303,14 @@ class Entity(BasicElement):
         #    breakpoint()
 
         super().__init__(id, ENTITY, False, x, y, True, rotation, " entity " + tags)
-
-        self.side = self.res.side
-        self.health = self.res.health
-        self.speed = self.res.speed
-        self.contactDamage = self.res.contactDamage
-        
-        self.invicibility = False
-        self.invTick = 60
-        self.invCounter = 0
-        
         self.lastAnim = None
-        
-        self._pendingLoop = None
-
-        self._pendingLoop = window.after(tick, self.outerLoop)
 
         if currWorld != None:
             currWorld.currRegion.entities.append(self)
 
     def cleanUp(self):
         super().cleanUp()
-        if self._pendingLoop != None:
-            window.after_cancel(self._pendingLoop)
-            self._pendingLoop = None
+
         currWorld.currRegion.entities.remove(self)
     
     def animate(self):
@@ -337,17 +321,6 @@ class Entity(BasicElement):
 
         super().animate()
         return True
-    
-    def getDistance(self, *args):
-        #Recupère la distance entre self et une entité si un argument donné,
-        #Sinon récupère la distance entre self et les coordonées donné
-        if len(args) == 1 and isinstance(args[0], Entity):
-            return sqrt((args[0].x - self.x)**2 + (args[0].y - self.y)**2 )
-        elif len(args) == 2:
-            return sqrt((args[0] - self.x)**2 + (args[1] - self.y)**2)
-        else:
-            raise Exception("Bad arguments in function getDistance")
-            breakpoint()
 
     def OnCollision(self):
         pass
@@ -381,30 +354,6 @@ class Entity(BasicElement):
         else:
             return False
 
-class Mob(Entity):
-    def __init__(self, id, x, y, rotation=0, tags=""):
-        super().__init__(id, x, y, rotation=rotation, tags=tags)
-        self.facingDirection = None  
-
-class MeleeEnemy(Mob):
-    def __init__(self, id, x, y, rotation=0):
-        super().__init__(id, x, y, rotation)
-        self.timer = 0
-        self.stopTimer = False
-        self.timer2 = 0
-        self.step = 0
-        self.direction = (0, 0)
-        
-class RangedEnemy(Mob):
-    def __init__(self, id, x, y, rotation=0):
-        super().__init__(id, x, y, rotation)
-        self.timer = 0
-        self.stopTimer = False
-        self.timer2 = 0
-        self.step = 0
-        self.direction = (0, 0)
-        self._timerShootArrow = 0
-        
 class Skill(Entity):
     def __init__(self, id, x: float, y: float, rotation=0):
         super().__init__(id, x, y, rotation)
@@ -413,42 +362,6 @@ class Skill(Entity):
     def OnAnimationEnd(self):
         self.animStatus = END
         self.cleanUp()
-      
-class Player(Mob):
-    #Classe singleton
-    def __init__(self, x: float, y: float):
-        super().__init__("player", x, y)
-        self.sword = None
-        self.action = None
-        self._pendingMelee = None
-        self.currency = 0
-        self.timer = 0
-
-        self._timerShootArrow = 0
-
-        #window.bind("<KeyPress-a>", lambda event: self.setAction("Melee"))
-        #window.bind("<KeyPress-e>", lambda event: self.setAction("Use"))
-        #window.bind("<KeyPress-z>", lambda event: self.setAction("Shoot"))
-
-class Projectile(Entity):
-    def __init__(self, id, x, y, dirx, diry, rotation=0):
-        super().__init__(id, x, y, rotation=rotation)
-        self.initDir = (dirx, diry)
-
-class Npc(Mob):
-    def __init__(self, id, x, y, dialogID):
-        super().__init__(id, x, y, tags="usable")
-        self.dialogID = dialogID
-        self.dialog = Dialog(self.dialogID)
-        self.index = 0
-
-class Jhony(Npc):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.step = 0 #Avancement
-
-        self.moveTick_1 = int(3*size/self.speed)
-        self.moveTick_2 = int(2*size/self.speed)
 
 class Decor(BasicElement):
     def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = "", **kwargs):
@@ -472,11 +385,7 @@ class Decor(BasicElement):
 
     def OnWalk(self):
         pass
-
-class Chest(Decor):
-    def __init__(self, *args):
-        super().__init__(*args, tags="usable")
-        
+      
 class Teleporter(Decor):
     parameters = {"dx": "Int", "dy": "Int"}
 
@@ -492,6 +401,18 @@ class Region:
         self.decors = []
     
     def load(self, path: str):
+        def retrieveObject(_class: str, _class2, *classArgs, **classKwargs):
+            try:
+                #Essaye de voir si la classe existe dans le programme, sinon utilise la classe Entity de base
+                tmpClass =  getattr(sys.modules[__name__], _class)
+                obj = tmpClass(*classArgs, **classKwargs)
+
+            except AttributeError:
+                obj = _class2(*classArgs, **classKwargs)
+            
+            return obj
+
+
         self.unload()
         try:
             with open(path) as file:
@@ -507,23 +428,26 @@ class Region:
 
                 for decor in data['decor']:
                     if len(decor) == 3:
+                        className = getRes(DECOR, decor[0]).className
                         if decor[2] != None:
-                            obj = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).className)(decor[0], *decor[1], **decor[2])
+                            obj = retrieveObject(className, Decor, decor[0], *decor[1], **decor[2])
                         else:
-                            obj = getattr(sys.modules[__name__], getRes(DECOR, decor[0]).className)(decor[0], *decor[1])
+                            obj = retrieveObject(className, Decor, decor[0], *decor[1])
 
                     if currWorld == None:
                         self.decors.append(obj)
 
                 for entity in data['entities']:
                     #TODO Maybe faire comme au desus
-                    obj = getattr(sys.modules[__name__], getRes(ENTITY, entity[0]).className)(entity[0], *entity[1])
+                    className = getRes(ENTITY, entity[0]).className
+                    obj = retrieveObject(className, Entity, entity[0], *entity[1])
+
                     if currWorld == None:
                         self.entities.append(obj)
 
                 return True
         except:
-            print("Cannot load map")
+            raise Exception("Cannot load map")
             return False
 
     def unload(self):
@@ -879,7 +803,10 @@ def OnClick(event):
     elif currentMode == DECOR:
         if event.num == 1:
             res: Res_Decor = getRes(DECOR, name)
-            tempClass = getattr(sys.modules[__name__], res.className)
+            try:
+                tempClass = getattr(sys.modules[__name__], res.className)
+            except:
+                tempClass = Decor
             if hasattr(tempClass, "parameters"):
                 kw = {}
                 parameters = tempClass.parameters
@@ -907,10 +834,15 @@ def OnClick(event):
     elif currentMode == ENTITY:
         if event.num == 1:
             res: Res_Entity = getRes(ENTITY, name)
+            try:
+                tempClass = getattr(sys.modules[__name__], res.className)
+            except:
+                tempClass = Entity
+
             if res.name == "player":
-                entity = getattr(sys.modules[__name__], res.className)(event.x - margin, event.y)
+                entity = tempClass(event.x - margin, event.y)
             else:
-                entity = getattr(sys.modules[__name__], res.className)(res.name, event.x - margin, event.y)
+                entity = tempClass(res.name, event.x - margin, event.y)
 
         elif event.num == 3:
             found = False
