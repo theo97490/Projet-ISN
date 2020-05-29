@@ -19,15 +19,9 @@ import sys
 
 import cProfile
 
-#Configuration de la fenêtre
-window = Tk()
-window.configure(height=HEIGHT, width=WIDTH)
-window.attributes('-fullscreen', True)
-window.geometry(WIDTH.__str__()+"x"+HEIGHT.__str__()+"+"+"300+300")
-canvas = Canvas(window)
-canvas.pack(fill=BOTH, expand=1)
 
-GameCore.initialize(window, canvas, True)
+window = canvas = None
+window, canvas = GameCore.initialize(True)
 
 world = None
 currentMode = TILE

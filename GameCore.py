@@ -1225,11 +1225,15 @@ def getRes(ressource, id):
     raise Exception("Ressource of type " + ressource + " not found" )
     breakpoint()
                 
-def initialize(win, canv, mode=False):
+def initialize(mode=False):
     global window, canvas, editorMode, margin
     editorMode = mode
-    window = win
-    canvas = canv
+    window = Tk()
+    window.configure(height=HEIGHT, width=WIDTH)
+    window.attributes('-fullscreen', True)
+    window.geometry(WIDTH.__str__()+"x"+HEIGHT.__str__()+"+"+"300+300")
+    canvas = Canvas(window)
+    canvas.pack(fill=BOTH, expand=1)
     for char in ["Up", "Down", "Left", "Right"]:
         window.bind("<KeyPress-%s>" % char, arrowPressed)
         window.bind("<KeyRelease-%s>" % char, arrowReleased)
@@ -1239,9 +1243,12 @@ def initialize(win, canv, mode=False):
     if editorMode == True:
         margin = (WIDTH - caseX*size) 
     else:
-        margin = (WIDTH - caseX*size)/2 
+        margin = (WIDTH - caseX*size)/2
+    
+    initRessources()
+    return (window, canvas)
 
-
+def initRessources():
     tile_configs = []
     decor_configs = []
     wNames = []
