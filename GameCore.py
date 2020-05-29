@@ -153,8 +153,10 @@ class BasicElement:
 
         self.currAnim = "Default"
         self.animSpeed = self.res.animSpeed
-        self.animCounter = 0
         self.animTick = 0
+
+        self.animCounter = 0
+        self.frozenAnim = False
 
         if self.res.collisions:
             tags += " collision "
@@ -182,8 +184,6 @@ class BasicElement:
         canvas.delete(self.obj)
 
     def animate(self):
-
-
         if self.res.animSpeed != 0 and not self.res.animConfig == None:
             self._pendingAnimation = window.after(tick * self.res.animSpeed, self.animate)
             self.nextSprite()
@@ -202,7 +202,8 @@ class BasicElement:
         self.image = self.res.getTexture(self.currAnim, self.animCounter, self.rotation)
         canvas.itemconfig(self.obj, image=self.image)
 
-        self.animCounter += 1
+        if not self.frozenAnim:
+            self.animCounter += 1   
 
     def rotate(self, rotation, fixed=False):
         if fixed:
@@ -443,16 +444,19 @@ class Mob(Entity):
         self.facingDirection = None 
 
     def move(self, dirx, diry):
-        if dirx > 0:
-            self.currAnim = self.facingDirection = RIGHT
-        elif dirx < 0:
-            self.currAnim = self.facingDirection = LEFT
-        elif diry > 0:
-            self.currAnim = self.facingDirection = UP
-        elif diry < 0:
-            self.currAnim = self.facingDirection = DOWN
+        if dirx != 0 or diry != 0:
+            self.frozenAnim = False
+            if dirx > 0:
+                self.currAnim = self.facingDirection = RIGHT
+            elif dirx < 0:
+                self.currAnim = self.facingDirection = LEFT
+            elif diry > 0:
+                self.currAnim = self.facingDirection = UP
+            elif diry < 0:
+                self.currAnim = self.facingDirection = DOWN
         else:
-            self.currAnim = "Default"
+            self.frozenAnim = True
+            self.animCounter = 0
 
         super().move(dirx, diry)
 
@@ -480,6 +484,8 @@ class Mob(Entity):
                     self.health -= entity.contactDamage
                     print("[DAMAGE] current health : "+ self.health.__str__())
                     self.invicibility = True
+
+
     def RandomMove(self, value):
         Rand = random.randint(0,4)
         if (Rand == 0) :
@@ -505,7 +511,14 @@ class Mob(Entity):
             else :
                 self.facingDirection = RIGHT
                             
+    def OnDeath(self):
+        self.cleanUp()
+
+
     def loop(self):
+        if self.health < 0:
+            self.OnDeath()
+
         self.checkGround()
         super().loop()
         self.checkCollisionDamage()    
@@ -676,6 +689,9 @@ class Player(Mob):
         super().cleanUp()
         player = None
     
+    def OnDeath(self):
+        pass
+
     def meleeAttack(self):
         self._pendingMelee = window.after(tick, self.meleeAttack)
         self.action = "Pending"

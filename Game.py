@@ -8,19 +8,15 @@ from tkinter import messagebox
 from tkinter import simpledialog
 from tkinter.font import Font
 
-import traceback
 import random
 
 from math import * 
 import fractions
-
-import sys
-
-import cProfile 
-
+ 
 
 window = canvas = None
 window, canvas = GameCore.initialize()
+GameCore.showFixBbox = True
 
 world = GameCore.World("stfu")
 player = GameCore.Player(size, size)

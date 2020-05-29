@@ -9,15 +9,12 @@ from tkinter import messagebox
 from tkinter import simpledialog
 from tkinter.font import Font
 
-import traceback
 import random
 
 from math import * 
 import fractions
 
-import sys
 
-import cProfile
 
 
 window = canvas = None

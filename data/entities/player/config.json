@@ -5,7 +5,7 @@
     "side": "Passive",
     "health": 100,
     "contactDamage": 0,
-    "speed": 10,
+    "speed": 6,
     "size": 1.0,
     "animSpeed": 2, 
     "physicalCollisions" : false,
