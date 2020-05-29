@@ -1,3 +1,6 @@
+import GameCore
+from GameConstants import *
+
 from tkinter import *
 from PIL import Image, ImageTk
 import os, json
@@ -16,57 +19,6 @@ import sys
 
 import cProfile
 
-
-Profiling = True
-showFixBbox = False
-
-
-if Profiling:
-    cp = cProfile.Profile()
-    cp.enable()
-
-
-#Constantes
-test = 27
-WIDTH = 1920
-HEIGHT = 1080
-tick = 15 #Environs 1 update par frame
-TILE = "TILE"
-DECOR = "DECOR"
-ENTITY = "ENTITY"
-DIALOG = "DIALOG"
-UP = "Up"
-DOWN = "Down"
-LEFT = "Left"
-RIGHT = "Right"
-
-dialogTimeStop = False
-pauseTimeStop = False
-
-#Chemins de dossier
-tilesFolder = "./data/tiles/"
-mapsFolder = "./data/maps/"
-saveFolder = "./data/saves/"
-decorsFolder = "./data/decorations/"
-entitiesFolder = "./data/entities/"
-dialogsFolder = "./data/dialogs/"
-
-currWorld = None
-resTiles = []
-resDecors = []
-resMaps = []
-resEntities = []
-resDialogs = []
-worlds = []
-
-#Grille
-caseX = 15
-caseY = 10
-size = int(1080 / caseY)
-margin = WIDTH - caseX*size
-
-currentMode = TILE
-
 #Configuration de la fenêtre
 window = Tk()
 window.configure(height=HEIGHT, width=WIDTH)
@@ -75,647 +27,18 @@ window.geometry(WIDTH.__str__()+"x"+HEIGHT.__str__()+"+"+"300+300")
 canvas = Canvas(window)
 canvas.pack(fill=BOTH, expand=1)
 
-class Ressource:
-    def __init__(self, path: str, config: dict):
-        self.name = config["name"]
-        self.animSpeed = config["animSpeed"]
-        self.collisions = config["physicalCollisions"]
-        self.animConfig = config["animations"]
-        self.animations = {}
+GameCore.initialize(window, canvas, True)
 
-        texture = []
-
-        if type(self.animConfig) is dict:
-            for key in self.animConfig:
-                spritesNumber = self.animConfig[key][0]
-                if spritesNumber > 1:
-                    for i in range(spritesNumber):
-                        if key == "Default":
-                            texture.append(getImage(path + self.name + i.__str__() + ".png"))
-
-                        else:
-                            folder = self.name + "_" + key + "/"
-                            texture.append(getImage(path + folder + self.name + "_" + key + i.__str__() + ".png"))
-                    
-                elif spritesNumber == 1:
-                    if key == "Default":
-                        texture.append(getImage(path + self.name + ".png"))
-                    else:
-                        texture.append(getImage(path + self.name + "_" + key + ".png"))
-                
-                self.animations[key] = texture
-
-        elif type(self.animConfig) is list:
-            spritesNumber = self.animConfig[0]
-            if spritesNumber > 1:
-                for i in range(spritesNumber):
-                    texture.append(getImage(path + self.name + i.__str__() + ".png"))
-
-            elif spritesNumber == 1:
-                texture.append(getImage(path + self.name + ".png"))
-                
-            self.animConfig = {"Default": self.animConfig}
-            self.animations["Default"] = texture
-
-        elif self.animConfig == None:
-            texture.append(getImage(path + self.name + ".png"))
-            self.animations["Default"] = texture
-            
-    def getTexture(self, key="Default", index=0, rotation=0):
-        return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
-
-class Res_Tile(Ressource):
-    pass
-
-class Res_Decor(Ressource):
-    def __init__(self, path: str,config: dict):
-        super().__init__(path, config)
-        self.className = config['class']
-
-class Res_Entity(Ressource):
-    def __init__(self, path: str, config: dict):
-        super().__init__(path, config)
-        self.className = config['class']
-        self.speed = config['speed']
-        self.size = config['size']
-        self.side = config['side']
-        self.health = config['health']
-        self.contactDamage = config['contactDamage']
-        self.dialogs = None
-
-        if self.className == "NPC":
-            pass
-
-class Res_Map:
-    def __init__(self, directory: str ,config: dict):
-        self.id = config['mapID']
-        self.name = config['mapName']
-        self.size = config['size'].lower()
-        self.directory = directory
-        
-class Res_Dialog:
-    def __init__(self, name, texts, dialogs):
-        self.name = name
-        self.texts = texts
-        self.dialogs = dialogs
-
-    def getDialog(self, index, i):
-        string = ""
-        for a in range(len(self.dialogs[index][i])):
-            string += self.texts[self.dialogs[index][i][a]]
-        return string
-
-    def getLen(self, index):
-        return len(self.dialogs[index])
-
-class BasicElement:
-    def __init__(self, id, resType: str, tileCoord: bool ,x: float, y: float, fix: bool, rotation = 0, tags = ""):
-        self.res = getRes(resType, id)
-        self._pendingAnimation = False
-        self.x = x
-        self.y = y
-        self.rotation = rotation
-
-        self.currAnim = "Default"
-        self.animSpeed = self.res.animSpeed
-        self.animCounter = 0
-        self.animTick = 0
-
-        if self.res.collisions:
-            tags += " collision "
-
-        self.image = self.res.getTexture(rotation=rotation)
-
-        if tileCoord:
-            self.obj = canvas.create_image(size*(x + 0.5) + margin, size*(y + 0.5), tags=tags, image=self.image)
-        else:
-            self.obj = canvas.create_image(x + margin, y, tags=tags, image=self.image)
-
-        self.tkinterFix = None
-        if fix:
-            self.tkinterFix = TkinterFix(x, y, self)
-
-        self._pendingAnimation = window.after(tick * self.animSpeed, self.animate)
-
-    def cleanUp(self):
-        if self._pendingAnimation:
-            window.after_cancel(self._pendingAnimation)
-
-        if self.tkinterFix != None:
-            self.tkinterFix.cleanUp()
-
-        canvas.delete(self.obj)
-
-    def animate(self):
-        if self.res.animSpeed != 0 and not self.res.animConfig == None:
-            self._pendingAnimation = window.after(tick * self.res.animSpeed, self.animate)
-            self.nextSprite()
-                
-    def nextSprite(self):
-        images, loop = self.res.animConfig[self.currAnim]
-
-        if self.animCounter == images:
-            if loop:
-                self.animCounter = 0
-            else:
-                window.after_cancel(self._pendingAnimation)
-                self.OnAnimationEnd()
-                return
-            
-        self.image = self.res.getTexture(self.currAnim, self.animCounter, self.rotation)
-        canvas.itemconfig(self.obj, image=self.image)
-
-        self.animCounter += 1
-
-    def rotate(self, rotation, fixed=False):
-        if fixed:
-            self.rotation = rotation
-        else:
-            self.rotation += rotation
-
-        self.rotation -= self.rotation // 360 * 360
-
-        self.image = self.res.getTexture(self.currAnim, self.animCounter, self.rotation)
-        canvas.itemconfig(self.obj, image=self.image)
-
-    def OnAnimationEnd(self):
-        pass
-
-    def __eq__(self, other):
-        if self.obj == other:
-            return True
-        else:
-            return False
-
-class Tile(BasicElement):
-    def __init__(self, id, x: int, y: int, rotation: int = 0):
-        super().__init__(id, TILE, True, x, y, False, rotation)
-
-    def changeTile(self, id):
-        self.__init__(id, self.x, self.y)
-
-    def cleanUp(self):
-        super().cleanUp()
-        #currWorld.currRegion.tiles.remove(self)
-    
-class TkinterFix:
-    #Tkinter a une manière spéciale de déterminer qu'est ce qui a changé sur l'écran qui permet de sauver des performances,
-    #Cette classe permet de forcer l'affichage des entités qui bougent sans qu'il y ait des bugs d'affichage
-    def __init__(self, x, y, entity, size=10):
-        x0, y0, x1, y1 = canvas.bbox(entity.obj)
-
-        if showFixBbox:
-            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="")
-        else:
-            self.obj = canvas.create_rectangle(x0 - size, y0 - size, x1 + size, y1 + size, fill="", outline="")
-
-    def move(self, dx, dy):
-        canvas.move(self.obj, dx, dy)
-
-    def cleanUp(self):
-        canvas.delete(self.obj)
-
-class Dialog:
-    def __init__(self, id):
-        
-        self.res = getRes(DIALOG, id)
-        self.img = getImage(dialogsFolder + "dialog_frame.png", photoimage=True)
-
-        #self.obj = None
-        self.label = None
-        self.font = Font(family="Times New Roman", size=24)
-        self.i = 0
-        self.dialIndex = 0
-        
-        self.funcID = None
-        self.end = False
-
-    def cleanUp(self):
-        global dialogTimeStop
-
-        self.end = False
-        #self.reset()
-        dialogTimeStop = False
-
-class Entity(BasicElement):
-    def __init__(self, id, x: float, y: float, rotation=0, tags=""):
-        #if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
-        #    raise Exception(x + " " + y + " Isn't a valid position for an Entity")
-        #    breakpoint()
-
-        super().__init__(id, ENTITY, False, x, y, True, rotation, " entity " + tags)
-        self.lastAnim = None
-
-        if currWorld != None:
-            currWorld.currRegion.entities.append(self)
-
-    def cleanUp(self):
-        super().cleanUp()
-
-        currWorld.currRegion.entities.remove(self)
-    
-    def animate(self):
-        if self.currAnim != self.lastAnim:
-                self.lastAnim = self.currAnim
-                self.animCounter = 0
-                self.animTick = self.animSpeed
-
-        super().animate()
-        return True
-
-    def OnCollision(self):
-        pass
-
-    def OnDeath(self):
-        pass
-
-    def OnBorderTouch(self):
-        pass
-    
-    def OnHit(self):
-        pass
-    
-    def outerLoop(self):
-        pass
-    #    self._pendingLoop = window.after(tick, self.outerLoop)
-    #    if not dialogTimeStop:
-    #        self.loop()
-    #    else:
-    #        self.timeStopLoop()
-        
-    def timeStopLoop(self):
-        pass 
-
-    def loop(self):
-        pass
-
-    def __eq__(self, other):
-        if self.obj == other:
-            return True
-        else:
-            return False
-
-class Skill(Entity):
-    def __init__(self, id, x: float, y: float, rotation=0):
-        super().__init__(id, x, y, rotation)
-        self.animStatus = None
-
-    def OnAnimationEnd(self):
-        self.animStatus = END
-        self.cleanUp()
-
-class Decor(BasicElement):
-    def __init__(self, id, x: float, y: float, rotation: int = 0, tags: str = "", **kwargs):
-
-        if x < 0 or x > caseX * size or y < 0 or y > caseY * size:
-            raise Exception(x + " " + y + " Isn't a valid position for a Decor")
-            breakpoint()
-
-        super().__init__(id, DECOR, False, x, y, False, rotation, "decor "+ tags)
-
-        self.arguments = None
-        if currWorld != None:
-            currWorld.currRegion.decors.append(self)
-    
-    def cleanUp(self):
-        super().cleanUp()
-        currWorld.currRegion.decors.remove(self)
-
-      
-class Teleporter(Decor):
-    parameters = {"dx": "Int", "dy": "Int"}
-
-    def __init__(self, *args, **kw):
-        super().__init__(*args, tags="walk")
-        self.dir = (kw["dx"], kw["dy"])
-        self.arguments = kw
-
-class Region:
-    def __init__(self):
-        self.tiles = []
-        self.entities = []
-        self.decors = []
-    
-    def load(self, path: str):
-        def retrieveObject(_class: str, _class2, *classArgs, **classKwargs):
-            """Uniquement dans l'éditeur, crée un objet avec la classe 1, sinon crée avec la class2 si elle existe pas"""
-            try:
-                #Essaye de voir si la classe existe dans le programme, sinon utilise la classe Entity de base
-                tmpClass =  getattr(sys.modules[__name__], _class)
-                obj = tmpClass(*classArgs, **classKwargs)
-
-            except AttributeError:
-                obj = _class2(*classArgs, **classKwargs)
-            
-            return obj
-
-
-        self.unload()
-        try:
-            with open(path) as file:
-                data = json.load(file)
-                tiles = data['tiles']
-
-                self.tiles = [[0 for i in range(caseX)] for i in range(caseY)]
-
-                for y in range(caseY):
-                    for x in range(caseX):
-                        filetile = tiles[y][x]
-                        self.tiles[y][x] = Tile(filetile[0], x, y, filetile[1])
-
-                for decor in data['decor']:
-                    if len(decor) == 3:
-                        className = getRes(DECOR, decor[0]).className
-                        if decor[2] != None:
-                            obj = retrieveObject(className, Decor, decor[0], *decor[1], **decor[2])
-                        else:
-                            obj = retrieveObject(className, Decor, decor[0], *decor[1])
-
-                    if currWorld == None:
-                        self.decors.append(obj)
-
-                for entity in data['entities']:
-                    #TODO Maybe faire comme au desus
-                    className = getRes(ENTITY, entity[0]).className
-                    obj = retrieveObject(className, Entity, entity[0], *entity[1])
-
-                    if currWorld == None:
-                        self.entities.append(obj)
-
-                return True
-        except:
-            raise Exception("Cannot load map")
-            return False
-
-    def unload(self):
-        for y in range(len(self.tiles)):
-            for x in range(len(self.tiles[y])):
-                self.tiles[y][x].cleanUp()
-
-        for decor in self.decors[:]:
-            decor.cleanUp()
-
-        for entity in self.entities[:]:
-            entity.cleanUp()
-
-        self.tiles = []
-        self.decors = []
-        self.entities = []
-                
-    def save(self, path: str):
-        tilesData = [[0 for i in range(caseX)]for i in range(caseY)]
-        for y in range(caseY):
-            for x in range(caseX):
-                tile: Tile = self.tiles[y][x]
-                tilesData[y][x] = [tile.res.name, tile.rotation]
-
-        decorsData = []
-        for decor in self.decors:
-            decorsData.append([decor.res.name, (decor.x, decor.y), decor.arguments])
-
-        entitiesData = []
-        for entity in self.entities:
-            entitiesData.append([entity.res.name, (entity.x, entity.y)])
-        
-        with open(path + ".data", "w") as file:
-            dic = {'tiles': tilesData, 'decor': decorsData, 'entities': entitiesData}
-            json.dump(dic, file)
-
-    def new(self, id):
-        self.unload()
-        self.tiles = [[0 for i in range(caseX)]for i in range(caseY)]
-        for y in range(caseY):
-            for x in range(caseX):
-                self.tiles[y][x] = Tile(id, x, y)
-
-class World:
-    def __init__(self, config: dict, worldDir: str):
-        self.name = config['name']
-        self.width, self.height = config['size']
-        self.startPos = config['startPos']
-        self.dir = worldDir
-        self.currRegion = Region()
-
-        self.regionCoords = self.startPos
-        self.loadRegion(*self.startPos, fixed=True)
-    
-    def loadRegion(self, x: int, y: int, fixed=False):
-        #Spécificités de l'editeur de map à enlever pour le jeu
-        #Si fixed n'est pas précisé, ajoute x et y à la position actuelle
-        if fixed:
-            coords = (x,y)
-        else:
-            a, b = self.regionCoords
-            coords = (a+x, b+y)
-
-        x, y = coords
-
-        if x > self.width or x < 0 or y < 0 or y > self.height:
-            return "Coords Error"
-        
-        self.regionCoords = coords
-        if not self.currRegion.load(self.dir + "Region " +  x.__str__() + " " + y.__str__() + ".data"):
-            return False
-
-    def saveRegion(self, name: str):
-        self.currRegion.save(self.dir + name)
-
-def getImage(path, imgSize=None, rotation=0, photoimage=False):
-    img = Image.open(path)
-    if type(imgSize) is tuple:
-        img = img.resize(imgSize, Image.BOX)
-    elif isinstance(imgSize, (int, float)):
-        img = img.resize((imgSize,imgSize), Image.BOX)
-    elif imgSize == None:
-        width, height = img.size
-        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-    else:
-        raise Exception("getImage size parameter is wrong")
-    
-    if rotation != 0:
-        img = img.rotate(rotation)
-    
-    if photoimage:
-        return ImageTk.PhotoImage(img)
-    else:
-        return img
-
-def clamp(num, min_value, max_value):
-   return max(min(num, max_value), min_value)
-
-def getRotation(dirx, diry):
-        rotation = 0
-        if diry == 0:
-            if dirx > 0:
-                rotation = -90
-            elif dirx < 0:
-                rotation = 90 
-            else:
-                # ???
-                return False
-
-        elif diry > 0:
-            rotation = degrees(atan(dirx/-diry))
-        elif diry < 0:
-            rotation = degrees(atan(dirx/-diry)) + 180
-        
-        return rotation
-
-def findObjectByTag(resType, canvasItems, tag, first=False):
-    objList = None
-    returnList = []
-
-    if resType == TILE:
-        objList = currWorld.currRegion.tiles
-    elif resType == DECOR:
-        objList = currWorld.currRegion.decors
-    elif resType == ENTITY:
-        objList = currWorld.currRegion.entities
-    else:
-        raise Exception('Ressource type not properly defined')
-        breakpoint()
-    
-    for item in canvasItems:
-        if tag in canvas.gettags(item):
-            for obj in objList:
-                if item == obj:
-                    if first:
-                        return obj
-                    else:
-                        returnList.append(obj)
-
-    if first:
-        return None
-    else:
-        return returnList
-    
-def getRes(ressource, id):
-    res = None
-    if ressource == TILE:
-        res = resTiles
-    elif ressource == DECOR:
-        res = resDecors
-    elif ressource == ENTITY:
-        res = resEntities
-    elif ressource == DIALOG:
-        res = resDialogs
-    else:
-        raise Exception('Ressource type not properly defined')
-        breakpoint()
-    
-
-    if type(id) is int:
-            return res[id]
-    elif type(id) is str:
-        for thing in res:
-            if thing.name.lower() == id.lower():
-                return thing
-
-    raise Exception("Ressource of type " + ressource + " not found" )
-    breakpoint()
-                
-def initRessources():
-    tile_configs = []
-    decor_configs = []
-    wNames = []
-    eNames = []
-    dialNames = []
-    
-
-    #name
-    #path
-    #iterations folder
-    #
-
-    #Tiles
-    for (dirpath, dirnames, filenames) in os.walk(tilesFolder):
-        for file in filenames:
-            if ".json" in file:
-                tile_configs.append(file)
-        break
-    
-    #Decors
-    for (dirpath, dirnames, filenames) in os.walk(decorsFolder):
-        for file in filenames:
-            if ".json" in file:
-                decor_configs.append(file)
-        break
-
-    #Maps #Non utilisé 
-    for (dirpath, dirnames, filenames) in os.walk(mapsFolder):
-        for folder in dirnames:
-            for (dirpath, dirnames, filenames) in os.walk(mapsFolder + folder):
-                if "config.json" in file:
-                    wNames.append(folder + "/")
-                    break
-        break
-
-    #Entities
-    for (dirpath, dirnames, filenames) in os.walk(entitiesFolder):
-        for folder in dirnames:
-            for (dirpath, dirnames, filenames) in os.walk(entitiesFolder + folder):
-                for file in filenames:
-                    if "config.json" in file:
-                        eNames.append(folder + "/")
-                        break
-        break
-    
-    #Dialogs
-    for (dirpath, dirnames, filenames) in os.walk(dialogsFolder):
-        for filename in filenames:
-            if ".json" in filename:
-                for (_dirpath, _dirnames, _filenames) in os.walk(dialogsFolder):
-                    for _filename in _filenames:
-                        if filename.replace(".json", ".txt") in _filename:
-                            dialNames.append(filename.replace(".json", ""))
-                            break
-                    break           
-        break
-
-    for config in tile_configs:
-        with open(tilesFolder + config) as file:
-            js = json.load(file)
-            if "name" in js:
-                resTiles.append(Res_Tile(tilesFolder,js))
-                
-    
-    for config in decor_configs:
-        with open(decorsFolder + config) as file:
-            js = json.load(file)
-            if "name" in js:
-                resDecors.append(Res_Decor(decorsFolder,js))
-                
-    
-    for entity in eNames:
-        with open(entitiesFolder + entity + "config.json") as file:
-            js = json.load(file)
-            if "name" in js:
-                resEntities.append(Res_Entity(entitiesFolder + entity, js))
-                
-
-    for dial in dialNames:
-        with open(dialogsFolder + dial + ".json") as jsonFile:
-            js = json.load(jsonFile)
-            if "dialogs" in js:
-                with open(dialogsFolder + dial + ".txt") as dialogFile:
-                    text = dialogFile.readlines()
-                    resDialogs.append(Res_Dialog(dial, text, js["dialogs"]))
-            else:
-                raise Exception("Json file doesn't either contain 'id' or 'dialogs' keys or an error occured while reading dialog texts")
-   
-def importFile():
-    #path = filedialog.askopenfilename(initialdir = saveFolder ,title = "Select Region Map ",filetypes = (("data files","*.data"),("all files","*.*")))
-    #if path != "":
-    #    currRegion.load(path)
-    pass
+world = None
+currentMode = TILE
 
 def save():
     fileName = save_input.get()
-    currWorld.saveRegion(fileName)
+    world.saveRegion(fileName)
 
 loaded = False
 def askWorldFolder():
-    global currWorld
+    global world
     global loaded
 
     path = filedialog.askdirectory(initialdir = mapsFolder ,title = "Select Map Directory") + "/"
@@ -723,13 +46,14 @@ def askWorldFolder():
         try:
             with open(path + "config.json", "r") as file:
                 js = json.load(file)
-                if type(currWorld) is World:
-                    currWorld.currRegion.unload()
-                currWorld = World(js, path)
+                if type(world) is GameCore.World:
+                    world.currRegion.unload()
+                world = GameCore.World(edit=(path, js))
                 if not loaded:
                     loaded = True
                     window.quit()
         except:
+            traceback.print_exc()
             result = messagebox.askyesno("Python",'There is no config.json in "' + path +'", \nWould you like to create one ?')
             if result:
                 with open(path + "config.json", "w") as file:
@@ -743,16 +67,6 @@ def askWorldFolder():
                     
                     os.startfile(path + "config.json")
 
-def shutdown():
-    window.destroy()
-    if Profiling:
-        cp.disable()
-        cp.print_stats(sort="cumtime")
-    os._exit(1)
-
-def Debug(event):
-    breakpoint()
-
 def ButtonWorldLoad(direction):
     x = 0
     y = 0
@@ -765,32 +79,26 @@ def ButtonWorldLoad(direction):
     elif direction == BOTTOM:
         y -= 1
 
-    if not currWorld.loadRegion(x,y):
-        coordx, coordy = currWorld.regionCoords
+    if not world.loadRegion(x,y):
+        coordx, coordy = world.regionCoords
         save_input.delete(0,len(save_input.get()) + 1)
         save_input.insert(0,"Region "+ coordx.__str__() + " " + coordy.__str__())
             
     textCoord.delete("1.0",END)
-    textCoord.insert("1.0", currWorld.regionCoords.__str__())
+    textCoord.insert("1.0", world.regionCoords.__str__())
 
-def arrowPressed(event):
-    arrowsStatus[event.keysym] = True
-
-def arrowReleased(event):
-    arrowsStatus[event.keysym] = False
-    
 def OnClick(event):
 
-    if event.y < 0 or event.y > size*caseY or event.x < margin or event.x > size*caseX + margin:
+    if event.y < 0 or event.y > size*caseY or event.x < GameCore.margin or event.x > size*caseX + GameCore.margin:
         return False
         
     index = selector.curselection()
     name = selector.get(index)
-    currRegion = currWorld.currRegion
+    currRegion = world.currRegion
 
     if currentMode == TILE:
         y = event.y//size
-        x = (event.x-margin)//size
+        x = (event.x-GameCore.margin)//size
     
         if event.num == 1:
             currRegion.tiles[y][x].changeTile(name)
@@ -799,11 +107,11 @@ def OnClick(event):
 
     elif currentMode == DECOR:
         if event.num == 1:
-            res: Res_Decor = getRes(DECOR, name)
+            res = GameCore.getRes(DECOR, name)
             try:
-                tempClass = getattr(sys.modules[__name__], res.className)
+                tempClass = getattr(sys.modules[GameCore], res.className)
             except:
-                tempClass = Decor
+                tempClass = GameCore.Decor
             if hasattr(tempClass, "parameters"):
                 kw = {}
                 parameters = tempClass.parameters
@@ -815,14 +123,14 @@ def OnClick(event):
                         val = simpledialog.askstring("Tkinter", "Ce décor a des paramètres supplémentaires à saisir \n Entrez " + key + " de type String" )
                     kw[key] = val
 
-                decor = tempClass(name, event.x - margin, event.y, **kw)
+                decor = tempClass(name, event.x - GameCore.margin, event.y, **kw)
             else:
-                decor = tempClass(name, event.x - margin, event.y)
+                decor = tempClass(name, event.x - GameCore.margin, event.y)
             
 
         elif event.num == 3:
             items = canvas.find_overlapping(event.x, event.y, event.x, event.y)
-            decor = findObjectByTag(DECOR, items, "decor", first=True)
+            decor = GameCore.findObjectByTag(DECOR, items, "decor", first=True)
             if decor != None:
                 decor.cleanUp()
                 
@@ -830,21 +138,21 @@ def OnClick(event):
 
     elif currentMode == ENTITY:
         if event.num == 1:
-            res: Res_Entity = getRes(ENTITY, name)
+            res = GameCore.getRes(ENTITY, name)
             try:
-                tempClass = getattr(sys.modules[__name__], res.className)
+                tempClass = getattr(sys.modules[GameCore], res.className)
             except:
-                tempClass = Entity
+                tempClass = GameCore.Entity
 
             if res.name == "player":
-                entity = tempClass(event.x - margin, event.y)
+                entity = tempClass(event.x - GameCore.margin, event.y)
             else:
-                entity = tempClass(res.name, event.x - margin, event.y)
+                entity = tempClass(res.name, event.x - GameCore.margin, event.y)
 
         elif event.num == 3:
             found = False
             items = canvas.find_overlapping(event.x, event.y, event.x, event.y)
-            entity = findObjectByTag(ENTITY, items, "entity", first=True)
+            entity = GameCore.findObjectByTag(ENTITY, items, "entity", first=True)
             if entity != None:
                 entity.cleanUp()
                 
@@ -855,13 +163,13 @@ def switchMode(mode: str):
     selector.delete(0,END)
 
     if mode == TILE:
-        res = resTiles
+        res = GameCore.resTiles
 
     elif mode == DECOR:
-        res = resDecors 
+        res = GameCore.resDecors 
         
     elif mode == ENTITY:
-        res = resEntities
+        res = GameCore.resEntities
 
     else: 
         raise Exception("Bad switch mode")
@@ -874,32 +182,22 @@ def switchMode(mode: str):
 
     selector.select_set(0)
 
-#Flèches directionnelles
-arrowsStatus = {"Up": False, "Down": False, "Left": False, "Right": False}
-for char in ["Up", "Down", "Left", "Right"]:
-    window.bind("<KeyPress-%s>" % char, arrowPressed)
-    window.bind("<KeyRelease-%s>" % char, arrowReleased)
-
-
-initRessources()
-
 world_button = Button(window, text="Select world folder", command=askWorldFolder)
 world_button.place(relx=0.5, rely=0.5, anchor=CENTER)
 world_button.config(font=("TkDefaultFont", 30))
-window.protocol("WM_DELETE_WINDOW", shutdown)
 window.mainloop()
 
 world_button.place(relx=0 ,x=50, rely=0, y=40, anchor=NW)
 world_button.config(font=("TkDefaultFont", 10))
 
 textCoord   = Text(window, width=8, height=2)
-textCoord.insert("1.0", currWorld.regionCoords.__str__())
+textCoord.insert("1.0", world.regionCoords.__str__())
 world_up    = Button(window, text="Up", command=lambda: ButtonWorldLoad(TOP))
 world_down  = Button(window, text="Down", command=lambda: ButtonWorldLoad(BOTTOM))
 world_left  = Button(window, text="Left", command=lambda: ButtonWorldLoad(LEFT))
 world_right = Button(window, text="Right", command=lambda: ButtonWorldLoad(RIGHT))
 
-create = Button(window,text="Create", command=lambda: currWorld.currRegion.new("grass3"))
+create = Button(window,text="Create", command=lambda: world.currRegion.new("grass3"))
 create.place(x=50, y=350)
 
 textCoord.place(x=145, y=550)
@@ -909,8 +207,8 @@ world_right.place(x=200, y=550)
 world_left.place(x=100, y=550)
 
 selector = Listbox(window)
-for i in range(len(resTiles)):
-    for tile in reversed(resTiles):
+for i in range(len(GameCore.resTiles)):
+    for tile in reversed(GameCore.resTiles):
         selector.insert(i, tile.name)
     break 
 
@@ -933,11 +231,7 @@ save_input.place(x=50, y=HEIGHT-100)
 save_button = Button(window, text="Save", command=save)
 save_button.place(x=150, y=HEIGHT-100)
 
-import_button = Button(window, text="Import", command=importFile)
-import_button.place(x=50, y=HEIGHT-50)
-
 canvas.bind('<Button>', OnClick)
-window.bind('<Escape>', Debug)
 
 #Tests
 Test = True
