@@ -83,10 +83,11 @@ class Ressource:
         self.animConfig = config["animations"]
         self.animations = {}
 
-        texture = []
+        
 
         if type(self.animConfig) is dict:
             for key in self.animConfig:
+                texture = []
                 spritesNumber = self.animConfig[key][0]
                 if spritesNumber > 1:
                     for i in range(spritesNumber):
@@ -94,7 +95,8 @@ class Ressource:
                             texture.append(getImage(path + self.name + i.__str__() + ".png"))
 
                         else:
-                            texture.append(getImage(path + self.name + "_" + key + i.__str__() + ".png"))
+                            folder = self.name + "_" + key + "/"
+                            texture.append(getImage(path + folder + self.name + "_" + key + i.__str__() + ".png"))
                     
                 elif spritesNumber == 1:
                     if key == "Default":
@@ -103,8 +105,9 @@ class Ressource:
                         texture.append(getImage(path + self.name + "_" + key + ".png"))
                 
                 self.animations[key] = texture
-
+                
         elif type(self.animConfig) is list:
+            texture = []
             spritesNumber = self.animConfig[0]
             if spritesNumber > 1:
                 for i in range(spritesNumber):
@@ -117,6 +120,7 @@ class Ressource:
             self.animations["Default"] = texture
 
         elif self.animConfig == None:
+            texture = []
             texture.append(getImage(path + self.name + ".png"))
             self.animations["Default"] = texture
             
@@ -207,6 +211,8 @@ class BasicElement:
         canvas.delete(self.obj)
 
     def animate(self):
+
+
         if self.res.animSpeed != 0 and not self.res.animConfig == None:
             self._pendingAnimation = window.after(tick * self.res.animSpeed, self.animate)
             self.nextSprite()

@@ -94,7 +94,8 @@ class Ressource:
                             texture.append(getImage(path + self.name + i.__str__() + ".png"))
 
                         else:
-                            texture.append(getImage(path + self.name + "_" + key + i.__str__() + ".png"))
+                            folder = self.name + "_" + key + "/"
+                            texture.append(getImage(path + folder + self.name + "_" + key + i.__str__() + ".png"))
                     
                 elif spritesNumber == 1:
                     if key == "Default":
@@ -397,6 +398,7 @@ class Region:
     
     def load(self, path: str):
         def retrieveObject(_class: str, _class2, *classArgs, **classKwargs):
+            """Uniquement dans l'éditeur, crée un objet avec la classe 1, sinon crée avec la class2 si elle existe pas"""
             try:
                 #Essaye de voir si la classe existe dans le programme, sinon utilise la classe Entity de base
                 tmpClass =  getattr(sys.modules[__name__], _class)
