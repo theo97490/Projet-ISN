@@ -16,10 +16,11 @@ import fractions
 
 window = canvas = None
 window, canvas = GameCore.initialize()
-GameCore.showFixBbox = True
+GameCore.showFixBbox = False
 
 world = GameCore.World("stfu")
 player = GameCore.Player(size, size)
 gui = GameCore.GUI()
 
 window.mainloop()
+

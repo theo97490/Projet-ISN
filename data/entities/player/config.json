@@ -7,14 +7,19 @@
     "contactDamage": 0,
     "speed": 6,
     "size": 1.0,
-    "animSpeed": 2, 
-    "physicalCollisions" : false,
+    "animSpeed": 2,
+    "collisions": true,
+    "damageCollisions" : false,
+    "defaultAnim": "Down",
     "animations": {
         "Up": [23, true ],
         "Down": [23, true ],
         "Left": [23, true ],
         "Right": [23, true ],
 
-        "Default": [1, true]
+        "Atk_Up": [1, true],
+        "Atk_Down": [1, true],
+        "Atk_Left": [1, true],
+        "Atk_Right": [1, true]
     }
 }

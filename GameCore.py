@@ -50,12 +50,15 @@ class Ressource:
     def __init__(self, path: str, config: dict):
         self.name = config["name"]
         self.animSpeed = config["animSpeed"]
-        self.collisions = config["physicalCollisions"]
+        self.damageCollisions = config["damageCollisions"]
+        self.collisions = config["colisions"]
         self.animConfig = config["animations"]
         self.animations = {}
+        self.defaultAnim = "Default"
+        if "defaultAnim" in config:
+            self.defaultAnim = config["defaultAnim"]
 
-        
-
+    
         if type(self.animConfig) is dict:
             for key in self.animConfig:
                 texture = []
@@ -63,17 +66,17 @@ class Ressource:
                 if spritesNumber > 1:
                     for i in range(spritesNumber):
                         if key == "Default":
-                            texture.append(getImage(path + self.name + i.__str__() + ".png"))
+                            texture.append(Ressource.getImage(path + self.name + i.__str__() + ".png"))
 
                         else:
                             folder = self.name + "_" + key + "/"
-                            texture.append(getImage(path + folder + self.name + "_" + key + i.__str__() + ".png"))
+                            texture.append(Ressource.getImage(path + folder + self.name + "_" + key + i.__str__() + ".png"))
                     
                 elif spritesNumber == 1:
                     if key == "Default":
-                        texture.append(getImage(path + self.name + ".png"))
+                        texture.append(Ressource.getImage(path + self.name + ".png"))
                     else:
-                        texture.append(getImage(path + self.name + "_" + key + ".png"))
+                        texture.append(Ressource.getImage(path + self.name + "_" + key + ".png"))
                 
                 self.animations[key] = texture
                 
@@ -82,22 +85,54 @@ class Ressource:
             spritesNumber = self.animConfig[0]
             if spritesNumber > 1:
                 for i in range(spritesNumber):
-                    texture.append(getImage(path + self.name + i.__str__() + ".png"))
+                    texture.append(Ressource.getImage(path + self.name + i.__str__() + ".png"))
 
             elif spritesNumber == 1:
-                texture.append(getImage(path + self.name + ".png"))
+                texture.append(Ressource.getImage(path + self.name + ".png"))
                 
             self.animConfig = {"Default": self.animConfig}
+            #TODO ?????????????????????
+
             self.animations["Default"] = texture
 
         elif self.animConfig == None:
             texture = []
-            texture.append(getImage(path + self.name + ".png"))
+            texture.append(Ressource.getImage(path + self.name + ".png"))
             self.animations["Default"] = texture
             
-    def getTexture(self, key="Default", index=0, rotation=0):
+    def getTexture(self, key=None, index=0, rotation=0):
+        if key == None:
+            key = self.defaultAnim
         return ImageTk.PhotoImage(self.animations[key][index].rotate(rotation, expand=True))
 
+    def getBboxSize(self, key=None):
+        if key == None:
+            key = self.defaultAnim
+
+        img: Image = self.animations[key][0]
+        return img.size
+
+    @staticmethod
+    def getImage(path, imgSize=None, rotation=0, photoimage=False):
+        img = Image.open(path)
+        if type(imgSize) is tuple:
+            img = img.resize(imgSize, Image.BOX)
+        elif isinstance(imgSize, (int, float)):
+            img = img.resize((imgSize,imgSize), Image.BOX)
+        elif imgSize == None:
+            width, height = img.size
+            img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
+        else:
+            raise Exception("getImage size parameter is wrong")
+        
+        if rotation != 0:
+            img = img.rotate(rotation)
+
+        if photoimage:
+            return ImageTk.PhotoImage(img)
+        else:
+            return img
+    
 class Res_Tile(Ressource):
     pass
 
@@ -150,13 +185,19 @@ class BasicElement:
         self.x = x
         self.y = y
         self.rotation = rotation
-
-        self.currAnim = "Default"
+        self.init = False
+        
+        self.currAnim = self.res.defaultAnim
         self.animSpeed = self.res.animSpeed
         self.animTick = 0
 
         self.animCounter = 0
         self.frozenAnim = False
+
+        self.collisions = self.res.collisions
+        if self.collisions:
+            self.bboxSize = self.res.getBboxSize()
+            self.bbox = self._calcBbox(0,0)
 
         if self.res.collisions:
             tags += " collision "
@@ -218,6 +259,10 @@ class BasicElement:
 
     def OnAnimationEnd(self):
         pass
+    
+    def _calcBbox(self, dx, dy):
+        width, height = self.bboxSize 
+        return (dx + self.x - width/2, dy + self.y - height/2, dx + self.x + width/2, dy + self.y + height/2)
 
     def __eq__(self, other):
         if self.obj == other:
@@ -257,7 +302,7 @@ class Dialog:
     def __init__(self, id):
         
         self.res = getRes(DIALOG, id)
-        self.img = getImage(dialogsFolder + "dialog_frame.png", photoimage=True)
+        self.img = Ressource.getImage(dialogsFolder + "dialog_frame.png", photoimage=True)
 
         #self.obj = None
         self.label = None
@@ -320,13 +365,16 @@ class Entity(BasicElement):
         self.contactDamage = self.res.contactDamage
         
         self.invicibility = False
-        self.invTick = 60
+        self.invTick = 10
         self.invCounter = 0
         
         self.lastAnim = None
         
         self._pendingLoop = None
         
+        self.bboxSize = self.res.getBboxSize()
+        self._calcBbox(0,0)
+
         if not editorMode:
             self._pendingLoop = window.after(tick, self.outerLoop)
 
@@ -362,11 +410,13 @@ class Entity(BasicElement):
             dy = 0
             self.OnBorderTouch()
         
+        if self.collisions: 
+            self.bbox = self._calcBbox(dx, dy)
+        canvas.move(self.obj, dx, dy)
+        self.tkinterFix.move(dx, dy)
+        
         self.x += dx
         self.y += dy
-
-        canvas.move(self.obj, dx ,dy)
-        self.tkinterFix.move(dx, dy)
     
     def moveTowards(self, x, y):
         norme = self.getDistance(x,y)
@@ -385,14 +435,13 @@ class Entity(BasicElement):
         return True
 
     def checkCollisions(self, dx, dy):
-        x1, y1, x2, y2 = canvas.bbox(self.obj)
-        items = canvas.find_overlapping(x1 + dx, y1 + dy, x2 + dx, y2 + dy)
-        for item in items:
-            tags = canvas.gettags(item)
-            if "collision" in tags:
-                self.OnCollision()
-                return True
-        return False 
+        objs = findOverlapping(self._calcBbox(dx, dy), self)
+        if not objs == None:
+            self.OnCollision(*objs)
+            return True
+        else:
+            return False
+
     
     def getDistance(self, *args):
         #Recupère la distance entre self et une entité si un argument donné,
@@ -405,7 +454,7 @@ class Entity(BasicElement):
             raise Exception("Bad arguments in function getDistance")
             breakpoint()
 
-    def OnCollision(self):
+    def OnCollision(self, *args):
         pass
 
     def OnDeath(self):
@@ -455,6 +504,7 @@ class Mob(Entity):
             elif diry < 0:
                 self.currAnim = self.facingDirection = DOWN
         else:
+            self.currAnim = self.facingDirection
             self.frozenAnim = True
             self.animCounter = 0
 
@@ -520,7 +570,6 @@ class Mob(Entity):
             self.OnDeath()
 
         self.checkGround()
-        super().loop()
         self.checkCollisionDamage()    
 
 class MeleeEnemy(Mob):
@@ -677,6 +726,8 @@ class Player(Mob):
         self._pendingMelee = None
         self.currency = 0
         self.timer = 0
+        self.meleeTimer = 0
+        self.done = False
 
         self._timerShootArrow = 0
 
@@ -696,31 +747,50 @@ class Player(Mob):
         self._pendingMelee = window.after(tick, self.meleeAttack)
         self.action = "Pending"
 
-        if self.sword == None:
+        if self.done == False:
+            self.done = True
             dx = dy = rotation = 0 
+            xsize = size
+            ysize = size/2
             
             if self.facingDirection == RIGHT:
+                self.currAnim = "Atk_Right"
                 rotation = -90
                 dx = size
+        
 
             elif self.facingDirection == LEFT:
+                self.currAnim = "Atk_Left"
                 rotation = 90
                 dx = -size
+                xsize = -xsize
 
             elif self.facingDirection == DOWN:
+                self.currAnim = "Atk_Down"
                 rotation = 180
                 dy = size
 
             elif self.facingDirection == UP:
+                self.currAnim = "Atk_Up"
                 dy = -size
+                ysize = -ysize
 
-            self.sword = Skill("player_sword", self.x + dx, self.y + dy, rotation)
+            hitzone = (self.x + dx , self.y + dy , self.x + dx + xsize, self.y + dy + ysize)
+            objs = findOverlapping(hitzone, self)
+            for obj in objs:
+                if isinstance(obj, Entity):
+                    obj.health -= 20
+                    obj.OnHit()
+
         
-        elif self.sword.animStatus == END:
-            self.sword = None
-            window.after_cancel(self._pendingMelee)
-            self._pendingMelee = None
-            self.action = None
+        else:
+            self.meleeTimer += 1
+            if self.meleeTimer >= 20:
+                self.meleeTimer = 0
+                self.done = False
+                window.after_cancel(self._pendingMelee)
+                self._pendingMelee = None
+                self.action = None
         
 
     def shootArrow(self):
@@ -805,7 +875,7 @@ class Projectile(Entity):
     def OnBorderTouch(self):
         self.cleanUp()
 
-    def OnCollision(self):
+    def OnCollision(self, *args):
         self.cleanUp()
 
     def move(self, dirx, diry):
@@ -813,10 +883,9 @@ class Projectile(Entity):
         super().move(dirx, diry)
 
     def loop(self):
-        self.move(*self.initDir)
         #self.moveTowards(player.x, player.y)
         super().loop()
-        canvas.update()
+        self.move(*self.initDir)
 
 class Npc(Mob):
     def __init__(self, id, x, y, dialogID):
@@ -1075,10 +1144,10 @@ class GUI:
     NOTHING = "NOTHING"
 
     def __init__(self):
-        self.img_heart      = getImage(GUI.heartFile, 100, photoimage=True)
-        self.img_halfHeart  = getImage(GUI.halfHeartFile, 100, photoimage=True)
-        self.img_nothing    = getImage(GUI.nothingFile, 100, photoimage=True)
-        self.img_coins      = getImage(GUI.coinsFile, 100, photoimage=True)
+        self.img_heart      = Ressource.getImage(GUI.heartFile, 100, photoimage=True)
+        self.img_halfHeart  = Ressource.getImage(GUI.halfHeartFile, 100, photoimage=True)
+        self.img_nothing    = Ressource.getImage(GUI.nothingFile, 100, photoimage=True)
+        self.img_coins      = Ressource.getImage(GUI.coinsFile, 100, photoimage=True)
 
         self.font = Font(family="Calibri", size="20")
         
@@ -1145,26 +1214,6 @@ class GUI:
             val = clamp(val, 0, 6)
             self.fillHeartsTo(val)
 
-def getImage(path, imgSize=None, rotation=0, photoimage=False):
-    img = Image.open(path)
-    if type(imgSize) is tuple:
-        img = img.resize(imgSize, Image.BOX)
-    elif isinstance(imgSize, (int, float)):
-        img = img.resize((imgSize,imgSize), Image.BOX)
-    elif imgSize == None:
-        width, height = img.size
-        img = img.resize((int(width * size/32), int(height * size/32)), Image.BOX)
-    else:
-        raise Exception("getImage size parameter is wrong")
-    
-    if rotation != 0:
-        img = img.rotate(rotation)
-    
-    if photoimage:
-        return ImageTk.PhotoImage(img)
-    else:
-        return img
-
 def clamp(num, min_value, max_value):
    return max(min(num, max_value), min_value)
 
@@ -1185,6 +1234,27 @@ def getRotation(dirx, diry):
             rotation = degrees(atan(dirx/-diry)) + 180
         
         return rotation
+
+def findOverlapping(var: BasicElement or tuple, *exclude: BasicElement):
+    exclude = list(exclude)
+    if isinstance(var, BasicElement):
+        bbox = var.bbox
+        exclude.append(var)
+    elif type(var) is tuple:
+        bbox = var
+        
+    returnList = []
+    for thing in currWorld.currRegion.entities + currWorld.currRegion.decors:
+        if thing.collisions and thing not in exclude:
+            x1, y1, x2, y2 = bbox
+            a1, b1, a2, b2 = thing.bbox
+            if x1 < a2 and x2 > a1 and y1 < b2 and y2 > b1:
+                returnList.append(thing)
+
+    if returnList == []:
+        return None
+    else:
+        return returnList
 
 def findObjectByTag(resType, canvasItems, tag, first=False):
     objList = None
@@ -1255,6 +1325,7 @@ def initialize(mode=False):
         window.bind("<KeyRelease-%s>" % char, arrowReleased)
 
     window.protocol("WM_DELETE_WINDOW", shutdown)
+    window.bind('<Escape>', Debug)
 
     if editorMode == True:
         margin = (WIDTH - caseX*size) 

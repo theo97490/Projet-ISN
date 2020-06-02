@@ -3,7 +3,7 @@
     "name": "arrow",
     "class": "Projectile",
     "side": "Passive",
-    "physicalCollisions": false,
+    "collisions": true,
     "health": 1,
     "contactDamage": 50,
     "speed": 20,
